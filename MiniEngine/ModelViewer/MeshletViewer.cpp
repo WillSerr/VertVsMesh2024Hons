@@ -29,15 +29,17 @@
 #include "Display.h"
 #include "ModelLoader.h"
 
-#include "ModelViewer.h"
+#include "MeshletViewer.h"
 #include "IBLHelper.h"
+
 
 using namespace GameCore;
 using namespace Math;
 using namespace Graphics;
 
 
-void ModelViewer::Startup( void )
+
+void MeshletViewer::Startup( void )
 {
     MotionBlur::Enable = false;
     TemporalEffects::EnableTAA = false;
@@ -86,7 +88,7 @@ void ModelViewer::Startup( void )
         m_CameraController.reset(new OrbitCamera(m_Camera, m_ModelInst.GetBoundingSphere(), Vector3(kYUnitVector)));
 }
 
-void ModelViewer::Cleanup( void )
+void MeshletViewer::Cleanup( void )
 {
     m_ModelInst = nullptr;
 
@@ -104,7 +106,7 @@ namespace Graphics
     extern EnumVar DebugZoom;
 }
 
-void ModelViewer::Update( float deltaT )
+void MeshletViewer::Update( float deltaT )
 {
     ScopedTimer _prof(L"Update State");
 
@@ -142,7 +144,7 @@ void ModelViewer::Update( float deltaT )
     m_MainScissor.bottom = (LONG)g_SceneColorBuffer.GetHeight();
 }
 
-void ModelViewer::RenderScene( void )
+void MeshletViewer::RenderScene( void )
 {
     GraphicsContext& gfxContext = GraphicsContext::Begin(L"Scene Render");
 

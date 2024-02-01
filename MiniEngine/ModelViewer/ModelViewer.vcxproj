@@ -56,7 +56,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="IBLHelper.cpp" />
     <ClCompile Include="Main.cpp" />
+    <ClCompile Include="MeshletViewer.cpp" />
     <ClCompile Include="ModelViewer.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -354,6 +356,8 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="IBLHelper.h" />
+    <ClInclude Include="MeshletViewer.h" />
     <ClInclude Include="ModelViewer.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
