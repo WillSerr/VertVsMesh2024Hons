@@ -30,4 +30,5 @@ namespace GraphRenderer
 
     void SetSelectedIndex(uint32_t selectedIndex);
 
+    void GetGraphData(std::vector<float>& out_Times);
 } // namespace GraphRenderer

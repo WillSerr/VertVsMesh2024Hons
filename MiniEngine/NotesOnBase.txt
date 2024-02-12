@@ -1,0 +1,39 @@
+sm_PSOs[
+//Depth Only PSOs
+DepthOnlyPSO,	<-0
+CutoutDepthPSO,
+SkinDepthOnlyPSO,
+SkinCutoutDepthPSO,
+
+// Shadow PSOs
+DepthOnlyPSO,	<-4
+CutoutDepthPSO,
+SkinDepthOnlyPSO,
+SkinCutoutDepthPSO
+]
+
+// Default PSO
+singular
+
+//m_skyboxPSO
+singular
+
+These lists use a custom GraphicsPSO class with a D3D12_GRAPHICS_PIPELINE_STATE_DESC which are for the traditional pipeline.
+
+---ADDMESH---
+IF shadowPass THEN
+	//If transparent, draw no shadow
+	if (alphaBlend)
+		return;
+	
+	key.passID = kZPass;
+	key.psoIdx = depthPSO + 4;	//DepthPSO(0) + 4 = ShadowPSO DepthPSO(4)
+        key.key = dist.u;
+	m_SortKeys.push_back(key.value); //is the index of the mesh(?) in the m_sortObjects vector
+					 //AND a union of all the values in a int64. Basically key.value == key;
+
+	m_PassCounts[kZPass]++;		//Needs a pass to draw this mesh in the ZPass
+
+ELSE IF full Opaque pass THEN
+	the same but with the opaque pass BUT use the PSO index stored in the passed in mesh
+

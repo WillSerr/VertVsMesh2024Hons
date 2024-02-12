@@ -101,7 +101,7 @@ public:
 
     void CreateNewCommandList(
         D3D12_COMMAND_LIST_TYPE Type,
-        ID3D12GraphicsCommandList** List,
+        ID3D12GraphicsCommandList6** List,
         ID3D12CommandAllocator** Allocator);
 
     // Test to see if a fence has already been reached

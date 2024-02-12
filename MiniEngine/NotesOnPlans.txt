@@ -1,0 +1,20 @@
+ sm_M(meshlet)PSOs[
+//Meshlet Depth Only PSOs
+DepthOnlyPSO,	<-0
+CutoutDepthPSO,
+SkinDepthOnlyPSO,
+SkinCutoutDepthPSO,
+
+//Meshlet Shadow PSOs
+DepthOnlyPSO,	<-4
+CutoutDepthPSO,
+SkinDepthOnlyPSO,
+SkinCutoutDepthPSO
+]
+
+Use a new GraphicsPSO class which uses D3DX12_MESH_SHADER_PIPELINE_STATE_DESC. 
+Will need to write 5 new shaders to replace: g_pDepthOnlyVS, g_pCutoutDepthVS, g_pCutoutDepthPS,
+						 g_pDepthOnlySkinVS, g_pCutoutDepthSkinVS
+Then compile then into binary blobs as described here: https://logins.github.io/graphics/2020/04/12/DX12PipelineStateObject.html
+
+RenderMeshes change the sm_PSOs to the sm_MPSOs ones

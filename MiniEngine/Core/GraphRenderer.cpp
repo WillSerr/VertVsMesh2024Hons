@@ -90,6 +90,8 @@ public:
     void RenderGraph(GraphicsContext& Context, uint32_t vertexCount, D3D12_VIEWPORT& viewport,
         uint32_t debugVarCount, float topMargin, const float* MaxArray, uint32_t frameID);
 
+    void GetGraphData(std::vector<float>& out_Times);
+
 private:
     std::vector<std::unique_ptr<float[]>> m_PerfTimesCPUBuffer;
     uint32_t m_NodeCount;
@@ -515,6 +517,12 @@ void GraphRenderer::SetSelectedIndex(uint32_t selectedIndex)
     s_SelectedTimerIndex = selectedIndex;
 }
 
+void GraphRenderer::GetGraphData(std::vector<float>& out_Times)
+{
+    GlobalGraphs.m_Graphs[0].get()->GetGraphData(out_Times);
+    //ProfileGraphs[0].
+}
+
 //---------------------------------------------------------------------
 //
 //	PerfGraph Methods
@@ -584,5 +592,17 @@ void PerfGraph::RenderGraph( GraphicsContext& Context, uint32_t vertexCount, D3D
         Context.Draw(vertexCount);
         if (debugVarCount > 1)
             viewport.TopLeftY += viewport.Height + topMargin;
+    }
+}
+
+void PerfGraph::GetGraphData(std::vector<float>& out_Times)
+{
+    out_Times.clear();
+    out_Times.resize(m_NodeCount,0);
+
+    for (int i = 0; i < m_NodeCount; ++i) 
+    {
+        float time = m_PerfTimesCPUBuffer[0][i];
+        out_Times[i] = time;
     }
 }

@@ -28,6 +28,9 @@
 #include "glTF.h"
 #include "Display.h"
 #include "ModelLoader.h"
+#include "GraphRenderer.h"
+#include <iostream>
+#include <fstream>
 
 #include "MeshletViewer.h"
 #include "IBLHelper.h"
@@ -106,7 +109,7 @@ namespace Graphics
     extern EnumVar DebugZoom;
 }
 
-void MeshletViewer::Update( float deltaT )
+void MeshletViewer::Update(float deltaT)
 {
     ScopedTimer _prof(L"Update State");
 
@@ -114,6 +117,23 @@ void MeshletViewer::Update( float deltaT )
         DebugZoom.Decrement();
     else if (GameInput::IsFirstPressed(GameInput::kRShoulder))
         DebugZoom.Increment();
+
+    if (GameInput::IsFirstPressed(GameInput::kKey_p))
+    {
+        GraphRenderer::GetGraphData(m_PerfData);
+        // Create and open a text file
+        ofstream MyFile("filename.txt");
+
+        // Write to the file
+        for (float time : m_PerfData) {
+            string entry = to_string(time);
+            entry += ", ";
+            MyFile << entry;
+        }
+
+        // Close the file
+        MyFile.close();
+    }
 
     m_CameraController->Update(deltaT);
 
