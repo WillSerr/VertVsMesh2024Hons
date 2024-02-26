@@ -116,7 +116,7 @@ public:
         return reinterpret_cast<ComputeContext&>(*this);
     }
 
-    ID3D12GraphicsCommandList* GetCommandList() {
+    ID3D12GraphicsCommandList6* GetCommandList() {
         return m_CommandList;
     }
 

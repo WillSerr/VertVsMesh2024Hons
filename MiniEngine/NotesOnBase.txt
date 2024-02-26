@@ -37,3 +37,13 @@ IF shadowPass THEN
 ELSE IF full Opaque pass THEN
 	the same but with the opaque pass BUT use the PSO index stored in the passed in mesh
 
+
+
+
+There is a root signature in the renderer which dictates the GPU's input structure which will require a second one for the mesh shaders inputs
+
+There are two primary vertex shaders that will need re-writtens, all others use #define and #ifdef to enable code options at compile time which will be a short job to recreate
+
+There is a seperate buffer for vertices used when drawing depth. These have a different size/stride so I assume this is an efficiency thing where the compact values make the depth passes faster as opposed to there actually being different position values. Not really possible to do different input types using the same hlsl file in mesh shaders.
+
+

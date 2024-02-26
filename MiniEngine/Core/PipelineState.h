@@ -96,6 +96,42 @@ private:
     std::shared_ptr<const D3D12_INPUT_ELEMENT_DESC> m_InputLayouts;
 };
 
+class GraphicsMPSO : public PSO
+{
+    friend class CommandContext;
+
+public:
+
+    // Start with empty state
+    GraphicsMPSO(const wchar_t* Name = L"Unnamed Graphics MPSO");
+
+    void SetBlendState(const D3D12_BLEND_DESC& BlendDesc);
+    void SetRasterizerState(const D3D12_RASTERIZER_DESC& RasterizerDesc);
+    void SetDepthStencilState(const D3D12_DEPTH_STENCIL_DESC& DepthStencilDesc);
+    void SetSampleMask(UINT SampleMask);
+    void SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE TopologyType);
+    void SetDepthTargetFormat(DXGI_FORMAT DSVFormat, UINT MsaaCount = 1, UINT MsaaQuality = 0);
+    void SetRenderTargetFormat(DXGI_FORMAT RTVFormat, DXGI_FORMAT DSVFormat, UINT MsaaCount = 1, UINT MsaaQuality = 0);
+    void SetRenderTargetFormats(UINT NumRTVs, const DXGI_FORMAT* RTVFormats, DXGI_FORMAT DSVFormat, UINT MsaaCount = 1, UINT MsaaQuality = 0);
+
+    // These const_casts shouldn't be necessary, but we need to fix the API to accept "const void* pShaderBytecode"
+    void SetAmpShader(const void* Binary, size_t Size) { m_PSODesc.AS = CD3DX12_SHADER_BYTECODE(const_cast<void*>(Binary), Size); }
+    void SetMeshShader(const void* Binary, size_t Size) { m_PSODesc.MS = CD3DX12_SHADER_BYTECODE(const_cast<void*>(Binary), Size); }
+    void SetPixelShader(const void* Binary, size_t Size) { m_PSODesc.PS = CD3DX12_SHADER_BYTECODE(const_cast<void*>(Binary), Size); }
+
+    void SetAmpShader(const D3D12_SHADER_BYTECODE& Binary) { m_PSODesc.AS = Binary; }
+    void SetMeshShader(const D3D12_SHADER_BYTECODE& Binary) { m_PSODesc.MS = Binary; }
+    void SetPixelShader(const D3D12_SHADER_BYTECODE& Binary) { m_PSODesc.PS = Binary; }
+
+    // Perform validation and compute a hash value for fast state block comparisons
+    void Finalize();
+
+private:
+
+    D3DX12_MESH_SHADER_PIPELINE_STATE_DESC m_PSODesc;
+    std::shared_ptr<const D3D12_INPUT_ELEMENT_DESC> m_InputLayouts;
+};
+
 
 class ComputePSO : public PSO
 {

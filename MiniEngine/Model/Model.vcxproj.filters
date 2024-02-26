@@ -51,6 +51,9 @@
     <Filter Include="Shaders">
       <UniqueIdentifier>{9169b7c9-f1a7-41d4-9098-58de36da850c}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Shaders\MeshShaders">
+      <UniqueIdentifier>{81cdffde-e28b-4040-b92a-6d0a660c7fa3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="SponzaRenderer.h">
@@ -110,6 +113,9 @@
       <Filter>Shaders</Filter>
     </None>
     <None Include="packages.config" />
+    <None Include="MeshCommon.hlsli">
+      <Filter>Shaders\MeshShaders</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Shaders\DefaultVS.hlsl">
@@ -191,6 +197,9 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="Shaders\DefaultNoUV1SkinVS.hlsl">
+      <Filter>Shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DefaultMS.hlsl">
       <Filter>Shaders</Filter>
     </FxCompile>
   </ItemGroup>

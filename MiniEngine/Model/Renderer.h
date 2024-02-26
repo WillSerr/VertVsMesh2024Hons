@@ -62,6 +62,7 @@ namespace Renderer
     void Shutdown(void);
 
     uint8_t GetPSO(uint16_t psoFlags);
+    uint8_t GetMPSO(uint16_t psoFlags);
     void SetIBLTextures(TextureRef diffuseIBL, TextureRef specularIBL);
     void SetIBLBias(float LODBias);
     void UpdateGlobalDescriptors(void);
@@ -108,9 +109,26 @@ namespace Renderer
             D3D12_GPU_VIRTUAL_ADDRESS bufferPtr,
             const Joint* skeleton = nullptr);
 
+        void AddMesh(const Mesh& mesh, float distance,
+            D3D12_GPU_VIRTUAL_ADDRESS meshCBV,
+            D3D12_GPU_VIRTUAL_ADDRESS materialCBV,
+            D3D12_GPU_VIRTUAL_ADDRESS bufferPtr,
+            D3D12_GPU_VIRTUAL_ADDRESS meshletBufferPtr,
+            D3D12_GPU_VIRTUAL_ADDRESS uniqueIndexBufferPtr,
+            D3D12_GPU_VIRTUAL_ADDRESS primitiveBufferPtr,
+            const Joint* skeleton = nullptr);
+
         void Sort();
 
         void RenderMeshes(DrawPass pass, GraphicsContext& context, GlobalConstants& globals);
+        void RenderMeshes(
+            DrawPass pass,
+            GraphicsContext& context,
+            GlobalConstants& globals,
+            D3D12_GPU_VIRTUAL_ADDRESS& meshlets,
+            D3D12_GPU_VIRTUAL_ADDRESS& uniqueVertexIB,
+            D3D12_GPU_VIRTUAL_ADDRESS& primitiveIndices,
+            std::map<uint32_t, XMFLOAT4>& meshletAssocMap);
 
     private:
 
@@ -136,6 +154,9 @@ namespace Renderer
             D3D12_GPU_VIRTUAL_ADDRESS meshCBV;
             D3D12_GPU_VIRTUAL_ADDRESS materialCBV;
             D3D12_GPU_VIRTUAL_ADDRESS bufferPtr;
+            D3D12_GPU_VIRTUAL_ADDRESS meshletBufferPtr;
+            D3D12_GPU_VIRTUAL_ADDRESS uIdxBufferPtr;
+            D3D12_GPU_VIRTUAL_ADDRESS primBufferPtr;
         };
 
         std::vector<SortObject> m_SortObjects;

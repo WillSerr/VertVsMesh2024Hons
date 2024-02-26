@@ -146,7 +146,7 @@ bool ModelH3D::BuildModel(ModelData& model, const std::wstring& basePath) const
         CompileTextureOnDemand(fullPath, model.m_TextureOptions[ti]);
     }
 
-    model.m_BoundingSphere = BoundingSphere(kZero);
+    model.m_BoundingSphere = Math::BoundingSphere(kZero);
     model.m_BoundingBox = AxisAlignedBox(kZero);
 
     // We're going to piggy-back off of the work to compile glTF meshes by pretending that's what
@@ -203,7 +203,7 @@ bool ModelH3D::BuildModel(ModelData& model, const std::wstring& basePath) const
         prim.minIndex = 0;
         prim.maxIndex = 0;
 
-        BoundingSphere sphereOS;
+        Math::BoundingSphere sphereOS;
         AxisAlignedBox boxOS;
         Renderer::CompileMesh(model.m_Meshes, model.m_GeometryData, gltfMesh, 0, Matrix4(kIdentity), sphereOS, boxOS); 
         model.m_BoundingSphere = model.m_BoundingSphere.Union(sphereOS);

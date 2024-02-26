@@ -43,7 +43,8 @@ void LoadMaterials(Model& model,
     const std::vector<MaterialTextureData>& materialTextures,
     const std::vector<std::wstring>& textureNames,
     const std::vector<uint8_t>& textureOptions,
-    const std::wstring& basePath)
+    const std::wstring& basePath,
+    bool useMPSOs = false)
 {
     static_assert((_alignof(MaterialConstants) & 255) == 0, "CBVs need 256 byte alignment");
 
@@ -129,7 +130,12 @@ void LoadMaterials(Model& model,
         uint32_t offsetPair = tableOffsets[mesh.materialCBV];
         mesh.srvTable = offsetPair & 0xFFFF;
         mesh.samplerTable = offsetPair >> 16;
-        mesh.pso = Renderer::GetPSO(mesh.psoFlags);
+        if (!useMPSOs) {
+            mesh.pso = Renderer::GetPSO(mesh.psoFlags);
+        }
+        else {
+            mesh.pso = Renderer::GetMPSO(mesh.psoFlags);
+        }
         meshPtr += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
     }
 }
@@ -227,17 +233,186 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     model->m_NumMeshes = header.numMeshes;
     model->m_MeshData.reset(new uint8_t[header.meshDataSize]);
 
+    std::vector<char> rawByteBuffer(header.geometrySize);
+
 	if (header.geometrySize > 0)
 	{
 		UploadBuffer modelData;
 		modelData.Create(L"Model Data Upload", header.geometrySize);
-		inFile.read((char*)modelData.Map(), header.geometrySize);
+
+
+		//inFile.read((char*)modelData.Map(), header.geometrySize);
+        inFile.read(rawByteBuffer.data(), header.geometrySize);  //keep hold of values for meshlet generating
+        memcpy(modelData.Map(), rawByteBuffer.data(), header.geometrySize);
+
 		modelData.Unmap();
 		model->m_DataBuffer.Create(L"Model Data", header.geometrySize, 1, modelData);
+
+
+
 	}
 
     inFile.read((char*)model->m_SceneGraph.get(), header.numNodes * sizeof(GraphNode));
     inFile.read((char*)model->m_MeshData.get(), header.meshDataSize);
+
+    //Generate Mesh renderer data
+#define SAMPLESIZE 100
+    const uint8_t* pMesh = model->m_MeshData.get();     // Pointer to current mesh
+    //model->uniqueVertexIB.resize(16);
+    int successfullRuns = 0;
+    //DXGI_FORMAT format[SAMPLESIZE]{ DXGI_FORMAT::DXGI_FORMAT_UNKNOWN };
+    //uint32_t DrawCount[SAMPLESIZE]{ 0 };   // Number of indices = 3 * number of triangles
+    //uint32_t primCount[SAMPLESIZE]{ 0 };   // Number of indices = 3 * number of triangles
+    //uint32_t startIndex[SAMPLESIZE]{ 0 };  // Offset to first index in index buffer 
+    //uint32_t baseVertex[SAMPLESIZE]{ 0 };  // Offset to first vertex in vertex buffer
+    //uint32_t DepthSizes[SAMPLESIZE]{ 0 };  // Offset to first vertex in vertex buffer
+    //uint32_t DepthOffsets[SAMPLESIZE]{ 0 };
+    //uint32_t VStrides[SAMPLESIZE]{ 0 };
+    //uint32_t HighestIndex[SAMPLESIZE]{ 0 };
+    //uint32_t TrueVertCount[SAMPLESIZE]{ 0 };
+    for (uint32_t i = 0; i < model->m_NumMeshes; ++i)
+    {
+        const Mesh& mesh = *(const Mesh*)pMesh;
+
+        size_t numFaces = mesh.draw[0].primCount / 3;
+        size_t numVerts = mesh.vbSize / mesh.vbStride;
+
+
+        int MeshletCount = model->meshlets.size();  //makes sense at the end of the loop
+
+        model->MeshletAssocMap[mesh.ibOffset] = XMFLOAT4(model->meshlets.size(), model->uniqueVertexIB.size(), model->primitiveIndices.size(),0);
+
+        //DXGI_FORMAT form = (DXGI_FORMAT)mesh.ibFormat;
+        //uint32_t DepthSize = mesh.vbDepthSize;
+        //uint32_t DepthOffset = mesh.vbDepthOffset;
+        //uint32_t VStride = mesh.vbStride;
+        //if (i < SAMPLESIZE) {
+        //    format[i] = form;
+        //    DepthSizes[i] = DepthSize;
+        //    DepthOffsets[i] = DepthOffset;
+        //    VStrides[i] = VStride;
+        //}
+
+        //uint32_t draws = mesh.numDraws;
+        //if (mesh.numDraws > 0) {
+        //    
+        //    uint32_t prims = mesh.draw[0].primCount;   // Number of indices = 3 * number of triangles
+        //    uint32_t startInd = mesh.draw[0].startIndex;  // Offset to first index in index buffer 
+        //    uint32_t baseVert = mesh.draw[0].baseVertex;  // Offset to first vertex in vertex buffer
+
+        //    if (i < SAMPLESIZE) {
+        //        DrawCount[i] = draws;
+        //        primCount[i] = prims;   // Number of indices = 3 * number of triangles
+        //        startIndex[i] = startInd;  // Offset to first index in index buffer 
+        //        baseVertex[i] = baseVert;  // Offset to first vertex in vertex buffer
+        //    }
+        //}
+
+        
+
+        //uint16_t ind16[SAMPLESIZE];
+        //uint16_t ind32[SAMPLESIZE];
+        //uint16_t highestIndex = 0;
+
+        size_t numIndices = mesh.draw[0].primCount;// mesh.ibSize / (sizeof(uint16_t));
+        auto indices = std::make_unique<uint16_t[]>(numIndices);
+        for (size_t j = 0; j < numIndices; ++j) {
+            uint16_t indj;
+            memcpy(&indj, (rawByteBuffer.data() + mesh.ibOffset + (sizeof(uint16_t) * j)), (sizeof(uint16_t)));            
+            indices[j] = indj;
+
+            //if (highestIndex < indj)
+            //    highestIndex = indj;
+
+            //if (j < SAMPLESIZE) {
+            //    ind16[j] = indices[j];
+
+            //    uint16_t indj; 
+            //    memcpy(&indj, (rawByteBuffer.data() + mesh.ibOffset), (sizeof(uint16_t)));
+            //    ind32[j] = indj;
+            //}
+
+        }
+
+        //if (i < SAMPLESIZE) {
+        //    HighestIndex[i] = highestIndex;
+        //}
+
+        //XMFLOAT3 pos[SAMPLESIZE];
+        //uint16_t vCount = 0;
+
+        auto positions = std::make_unique<XMFLOAT3[]>(numVerts);
+        for (size_t j = 0; j < numVerts; ++j) {
+            XMFLOAT3 posj;
+            memcpy(&posj, (rawByteBuffer.data() + mesh.vbOffset + (mesh.vbStride * j)), (sizeof(XMFLOAT3)));            
+            positions[j] = posj;
+
+            //if (j < SAMPLESIZE) {
+            //    pos[j] = posj;
+            //}
+
+            //++vCount;
+        }
+
+        //if (i < SAMPLESIZE) {
+        //    TrueVertCount[i] = vCount;
+        //}
+
+
+
+
+
+        HRESULT RES = ComputeMeshlets(
+            indices.get(), numFaces,
+            positions.get(),
+            numVerts,
+            nullptr,
+            model->meshlets, model->uniqueVertexIB, model->primitiveIndices
+        );
+
+        MeshletCount = model->meshlets.size() - MeshletCount;
+
+        model->MeshletAssocMap[mesh.ibOffset].w = MeshletCount;
+
+        if (RES != S_OK)
+        {
+            bool oops = true;
+            // Error
+        }        
+        else{
+        successfullRuns++;
+        }
+            
+
+        pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
+    }
+
+    {
+        UploadBuffer MeshletsUpload;
+        MeshletsUpload.Create(L"Meshlet Data Upload", model->meshlets.size() * sizeof(DirectX::Meshlet));
+        memcpy(MeshletsUpload.Map(), model->meshlets.data(), model->meshlets.size() * sizeof(DirectX::Meshlet));
+        MeshletsUpload.Unmap();
+        model->m_MeshletBuffer.Create(L"Meshlet Data Buffer", model->meshlets.size(), sizeof(DirectX::Meshlet), MeshletsUpload);
+    }   
+
+
+    {
+        UploadBuffer uniqueVertexUpload;
+        uniqueVertexUpload.Create(L"Unique Vertex Upload", model->uniqueVertexIB.size() * sizeof(uint8_t));
+        memcpy(uniqueVertexUpload.Map(), model->uniqueVertexIB.data(), model->uniqueVertexIB.size() * sizeof(uint8_t));
+        uniqueVertexUpload.Unmap();
+        model->m_uniqueVertexIB.Create(L"Unique Vertex Data Buffer", model->uniqueVertexIB.size() / 2, sizeof(uint16_t), uniqueVertexUpload);
+    }
+
+
+    {
+        UploadBuffer PrimitivesUpload;
+        PrimitivesUpload.Create(L"Primitive Indices Upload", model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
+        memcpy(PrimitivesUpload.Map(), model->primitiveIndices.data(), model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
+        PrimitivesUpload.Unmap();
+        model->m_primitiveIndices.Create(L"Primitive Indices Data Buffer", model->primitiveIndices.size(), sizeof(DirectX::MeshletTriangle), PrimitivesUpload);
+    }
+
 
 	if (header.numMaterials > 0)
 	{
@@ -270,7 +445,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 
     LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
 
-    model->m_BoundingSphere = BoundingSphere(*(XMFLOAT4*)header.boundingSphere);
+    model->m_BoundingSphere = Math::BoundingSphere(*(XMFLOAT4*)header.boundingSphere);
     model->m_BoundingBox = AxisAlignedBox(Vector3(*(XMFLOAT3*)header.minPos), Vector3(*(XMFLOAT3*)header.maxPos));
 
     // Load animation data

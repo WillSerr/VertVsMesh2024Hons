@@ -15,12 +15,13 @@
 #include "Renderer.h"
 #include "ConstantBuffers.h"
 
+
 using namespace Math;
 using namespace Renderer;
 
 void Model::Destroy()
 {
-    m_BoundingSphere = BoundingSphere(kZero);
+    m_BoundingSphere = Math::BoundingSphere(kZero);
     m_DataBuffer.Destroy();
     m_MaterialConstants.Destroy();
     m_NumNodes = 0;
@@ -33,7 +34,7 @@ void Model::Render(
     MeshSorter& sorter,
     const GpuBuffer& meshConstants,
     const ScaleAndTranslation sphereTransforms[],
-    const Joint* skeleton ) const
+    const Joint* skeleton, bool useMeshlets) const
 {
     // Pointer to current mesh
     const uint8_t* pMesh = m_MeshData.get();
@@ -46,22 +47,36 @@ void Model::Render(
         const Mesh& mesh = *(const Mesh*)pMesh;
 
         const ScaleAndTranslation& sphereXform = sphereTransforms[mesh.meshCBV];
-        BoundingSphere sphereLS((const XMFLOAT4*)mesh.bounds);
-        BoundingSphere sphereWS = sphereXform * sphereLS;
-        BoundingSphere sphereVS = BoundingSphere(viewMat * sphereWS.GetCenter(), sphereWS.GetRadius());
+        Math::BoundingSphere sphereLS((const XMFLOAT4*)mesh.bounds);
+        Math::BoundingSphere sphereWS = sphereXform * sphereLS;
+        Math::BoundingSphere sphereVS = Math::BoundingSphere(viewMat * sphereWS.GetCenter(), sphereWS.GetRadius());
 
         if (frustum.IntersectSphere(sphereVS))
         {
-            float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
-            sorter.AddMesh(mesh, distance,
-                meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
-                m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
-                m_DataBuffer.GetGpuVirtualAddress(), skeleton);
+            if (!useMeshlets) {
+                float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
+                sorter.AddMesh(mesh, distance,
+                    meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
+                    m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
+                    m_DataBuffer.GetGpuVirtualAddress(), skeleton);
+            }
+            else {
+                float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
+                sorter.AddMesh(mesh, distance,
+                    meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
+                    m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
+                    m_DataBuffer.GetGpuVirtualAddress(),
+                    m_MeshletBuffer.GetGpuVirtualAddress(),
+                    m_uniqueVertexIB.GetGpuVirtualAddress(),
+                    m_primitiveIndices.GetGpuVirtualAddress(),
+                    skeleton);
+            }
         }
 
         pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
     }
 }
+
 
 void ModelInstance::Render(MeshSorter& sorter) const
 {
@@ -267,7 +282,7 @@ Scalar ModelInstance::GetRadius() const
 Math::BoundingSphere ModelInstance::GetBoundingSphere() const
 {
     if (m_Model == nullptr)
-        return BoundingSphere(kZero);
+        return Math::BoundingSphere(kZero);
 
     return m_Locator * m_Model->m_BoundingSphere;
 }

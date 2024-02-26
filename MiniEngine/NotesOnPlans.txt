@@ -16,5 +16,12 @@ Use a new GraphicsPSO class which uses D3DX12_MESH_SHADER_PIPELINE_STATE_DESC.
 Will need to write 5 new shaders to replace: g_pDepthOnlyVS, g_pCutoutDepthVS, g_pCutoutDepthPS,
 						 g_pDepthOnlySkinVS, g_pCutoutDepthSkinVS
 Then compile then into binary blobs as described here: https://logins.github.io/graphics/2020/04/12/DX12PipelineStateObject.html
+This is already done automatically by fxc^
 
 RenderMeshes change the sm_PSOs to the sm_MPSOs ones
+
+Make a second Root signature for combining the mesh shader and original inputs
+
+There are two primary vertex shaders that will be re-written as pass through mesh shaders (as a minimum), all others use #define and #ifdef to enable code options at compile time which will be a short job to recreate
+
+Going to use the same vertex data for drawing depth as we can't mess around with the input values' data sizes without an IA

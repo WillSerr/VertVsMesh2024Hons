@@ -24,6 +24,10 @@
 #include "../Core/Math/BoundingSphere.h"
 #include <cstdint>
 
+#include "DirectXMesh.h"
+
+
+
 namespace Renderer
 {
     class MeshSorter;
@@ -107,7 +111,7 @@ public:
     void Render(Renderer::MeshSorter& sorter,
         const GpuBuffer& meshConstants,
         const Math::ScaleAndTranslation sphereTransforms[],
-        const Joint* skeleton) const;
+        const Joint* skeleton, bool useMeshlets = false) const;
 
     Math::BoundingSphere m_BoundingSphere; // Object-space bounding sphere
     Math::AxisAlignedBox m_BoundingBox;
@@ -125,6 +129,41 @@ public:
     std::unique_ptr<AnimationSet[]> m_Animations;
     std::unique_ptr<uint16_t[]> m_JointIndices;
     std::unique_ptr<Math::Matrix4[]> m_JointIBMs;
+
+    //Span<Subset>               MeshletSubsets;
+    //Span<Meshlet>              Meshlets;
+    //Span<uint8_t>              UniqueVertexIndices;
+    //Span<PackedTriangle>       PrimitiveIndices;
+
+    //Microsoft::WRL::ComPtr<ID3D12Resource>              MeshletResource;
+    //Microsoft::WRL::ComPtr<ID3D12Resource>              UniqueVertexIndexResource;
+    //Microsoft::WRL::ComPtr<ID3D12Resource>              PrimitiveIndexResource;
+
+
+    std::vector<Meshlet> meshlets;
+    std::vector<uint8_t> uniqueVertexIB;
+    std::vector<MeshletTriangle> primitiveIndices;
+
+    ByteAddressBuffer m_MeshletBuffer;
+    ByteAddressBuffer m_uniqueVertexIB;
+    ByteAddressBuffer m_primitiveIndices;
+
+    std::map<uint32_t, XMFLOAT4> MeshletAssocMap;
+
+    //struct Subset
+    //{
+    //    uint32_t Offset;
+    //    uint32_t Count;
+    //};
+
+
+    //uint32_t                   IndexSize;       //1
+    //std::vector<Subset>               MeshletSubsets;  //2 originally a span instead of vector
+
+    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> VertexResources;    //1
+    Microsoft::WRL::ComPtr<ID3D12Resource>              MeshletResource;    //1
+    Microsoft::WRL::ComPtr<ID3D12Resource>              UniqueVertexIndexResource;  //1
+    Microsoft::WRL::ComPtr<ID3D12Resource>              PrimitiveIndexResource;     //1
 
 protected:
     void Destroy();

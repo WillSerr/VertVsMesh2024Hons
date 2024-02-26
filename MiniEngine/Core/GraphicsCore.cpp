@@ -49,7 +49,7 @@ namespace Graphics
     bool g_bTypedUAVLoadSupport_R11G11B10_FLOAT = false;
     bool g_bTypedUAVLoadSupport_R16G16B16A16_FLOAT = false;
 
-    ID3D12Device* g_Device = nullptr;
+    ID3D12Device2* g_Device = nullptr;
     CommandListManager g_CommandManager;
     ContextManager g_ContextManager;
 
@@ -163,7 +163,7 @@ namespace Graphics
 // Initialize the DirectX resources required to run.
 void Graphics::Initialize(bool RequireDXRSupport)
 {
-    Microsoft::WRL::ComPtr<ID3D12Device> pDevice;
+    Microsoft::WRL::ComPtr<ID3D12Device2> pDevice;
 
     uint32_t useDebugLayers = 0;
     CommandLineArgs::GetInteger(L"debug", useDebugLayers);

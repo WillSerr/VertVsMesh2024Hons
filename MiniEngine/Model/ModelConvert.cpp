@@ -45,7 +45,7 @@ void Renderer::CompileMesh(
     glTF::Mesh& srcMesh,
     uint32_t matrixIdx,
     const Matrix4& localToObject,
-    BoundingSphere& boundingSphere,
+    Math::BoundingSphere& boundingSphere,
     AxisAlignedBox& boundingBox
     )
 {
@@ -58,7 +58,7 @@ void Renderer::CompileMesh(
     size_t totalDepthVertexSize = 0;
     size_t totalIndexSize = 0;
 
-    BoundingSphere sphereOS(kZero);
+    Math::BoundingSphere sphereOS(kZero);
     AxisAlignedBox bboxOS(kZero);
 
     std::vector<Primitive> primitives(srcMesh.primitives.size());
@@ -101,7 +101,7 @@ void Renderer::CompileMesh(
         size_t ibSize = 0;
 
         // Compute local space bounding sphere for all submeshes
-        BoundingSphere collectiveSphere(kZero);
+        Math::BoundingSphere collectiveSphere(kZero);
 
         for (auto& draw : iter.second)
         {
@@ -170,7 +170,7 @@ void Renderer::CompileMesh(
 
 static uint32_t WalkGraph(
     std::vector<GraphNode>& sceneGraph,
-    BoundingSphere& modelBSphere,
+    Math::BoundingSphere& modelBSphere,
     AxisAlignedBox& modelBBox,
     std::vector<Mesh*>& meshList,
     std::vector<byte>& bufferMemory,
@@ -212,7 +212,7 @@ static uint32_t WalkGraph(
 
         if (!curNode->pointsToCamera && curNode->mesh != nullptr)
         {
-            BoundingSphere sphereOS;
+            Math::BoundingSphere sphereOS;
             AxisAlignedBox boxOS;
             CompileMesh(meshList, bufferMemory, *curNode->mesh, curPos, LocalXform, sphereOS, boxOS);
             modelBSphere = modelBSphere.Union(sphereOS);
@@ -454,7 +454,7 @@ bool Renderer::BuildModel(ModelData& model, const glTF::Asset& asset, int sceneI
     // Aggregate all of the vertex and index buffers in this unified buffer
     std::vector<byte>& bufferMemory = model.m_GeometryData;
 
-    model.m_BoundingSphere = BoundingSphere(kZero);
+    model.m_BoundingSphere = Math::BoundingSphere(kZero);
     model.m_BoundingBox = AxisAlignedBox(kZero);
     uint32_t numNodes = WalkGraph(model.m_SceneGraph, model.m_BoundingSphere, model.m_BoundingBox, model.m_Meshes, bufferMemory, scene->nodes, 0, Matrix4(kIdentity));
     model.m_SceneGraph.resize(numNodes);

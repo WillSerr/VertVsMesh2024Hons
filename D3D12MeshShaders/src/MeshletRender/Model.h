@@ -79,10 +79,10 @@ struct Mesh
 
     Span<Subset>               IndexSubsets;
     Span<uint8_t>              Indices;
-    uint32_t                   IndexSize;
+    uint32_t                   IndexSize;       //1
     uint32_t                   IndexCount;
 
-    Span<Subset>               MeshletSubsets;
+    Span<Subset>               MeshletSubsets;  //2
     Span<Meshlet>              Meshlets;
     Span<uint8_t>              UniqueVertexIndices;
     Span<PackedTriangle>       PrimitiveIndices;
@@ -92,13 +92,14 @@ struct Mesh
     std::vector<D3D12_VERTEX_BUFFER_VIEW>  VBViews;
     D3D12_INDEX_BUFFER_VIEW                IBView;
 
-    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> VertexResources;
+    std::vector<Microsoft::WRL::ComPtr<ID3D12Resource>> VertexResources;    //1
     Microsoft::WRL::ComPtr<ID3D12Resource>              IndexResource;
-    Microsoft::WRL::ComPtr<ID3D12Resource>              MeshletResource;
-    Microsoft::WRL::ComPtr<ID3D12Resource>              UniqueVertexIndexResource;
-    Microsoft::WRL::ComPtr<ID3D12Resource>              PrimitiveIndexResource;
+    Microsoft::WRL::ComPtr<ID3D12Resource>              MeshletResource;    //1
+    Microsoft::WRL::ComPtr<ID3D12Resource>              UniqueVertexIndexResource;  //1
+    Microsoft::WRL::ComPtr<ID3D12Resource>              PrimitiveIndexResource;     //1
     Microsoft::WRL::ComPtr<ID3D12Resource>              CullDataResource;
     Microsoft::WRL::ComPtr<ID3D12Resource>              MeshInfoResource;
+
 
     // Calculates the number of instances of the last meshlet which can be packed into a single threadgroup.
     uint32_t GetLastMeshletPackCount(uint32_t subsetIndex, uint32_t maxGroupVerts, uint32_t maxGroupPrims) 

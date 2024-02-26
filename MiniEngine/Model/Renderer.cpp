@@ -41,6 +41,9 @@
 #include "CompiledShaders/CutoutDepthPS.h"
 #include "CompiledShaders/SkyboxVS.h"
 #include "CompiledShaders/SkyboxPS.h"
+#include "CompiledShaders/DefaultMS.h"
+
+#include "DirectXMesh.h"
 
 #pragma warning(disable:4319) // '~': zero extending 'uint32_t' to 'uint64_t' of greater size
 
@@ -57,6 +60,7 @@ namespace Renderer
     DescriptorHeap s_TextureHeap;
     DescriptorHeap s_SamplerHeap;
     std::vector<GraphicsPSO> sm_PSOs;
+    std::vector<GraphicsMPSO> sm_MPSOs;
 
     TextureRef s_RadianceCubeMap;
     TextureRef s_IrradianceCubeMap;
@@ -66,6 +70,7 @@ namespace Renderer
     uint32_t g_ShadowBufferID;
 
     RootSignature m_RootSig;
+    RootSignature m_MeshRootSig;
     GraphicsPSO m_SkyboxPSO(L"Renderer: Skybox PSO");
     GraphicsPSO m_DefaultPSO(L"Renderer: Default PSO"); // Not finalized.  Used as a template.
 
@@ -95,6 +100,23 @@ void Renderer::Initialize(void)
     m_RootSig[kCommonCBV].InitAsConstantBuffer(1);
     m_RootSig[kSkinMatrices].InitAsBufferSRV(20, D3D12_SHADER_VISIBILITY_VERTEX);
     m_RootSig.Finalize(L"RootSig", D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
+
+    m_MeshRootSig.Reset(kNumRootBindings + 4, 3);
+    m_MeshRootSig.InitStaticSampler(10, DefaultSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig.InitStaticSampler(11, SamplerShadowDesc, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig.InitStaticSampler(12, CubeMapSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig[kMeshConstants].InitAsConstantBuffer(0, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig[kMaterialConstants].InitAsConstantBuffer(0, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig[kMaterialSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 0, 10, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig[kMaterialSamplers].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 0, 10, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig[kCommonSRVs].InitAsDescriptorRange(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 10, 10, D3D12_SHADER_VISIBILITY_PIXEL);
+    m_MeshRootSig[kCommonCBV].InitAsConstantBuffer(1);
+    m_MeshRootSig[kSkinMatrices].InitAsBufferSRV(20, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig[kSkinMatrices + 1].InitAsBufferSRV(21, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig[kSkinMatrices + 2].InitAsBufferSRV(22, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig[kSkinMatrices + 3].InitAsBufferSRV(23, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig[kSkinMatrices + 4].InitAsBufferSRV(24, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig.Finalize(L"MeshRootSig");
 
     DXGI_FORMAT ColorFormat = g_SceneColorBuffer.GetFormat();
     DXGI_FORMAT DepthFormat = g_SceneDepthBuffer.GetFormat();
@@ -187,6 +209,67 @@ void Renderer::Initialize(void)
     sm_PSOs.push_back(SkinCutoutDepthPSO);
 
     ASSERT(sm_PSOs.size() == 8);
+
+    // Meshlet PSOs
+
+    ASSERT(sm_MPSOs.size() == 0);
+
+    // Depth Only Meshlet PSOs
+
+    GraphicsMPSO DepthOnlyMPSO(L"Renderer: Depth Only MPSO");
+    DepthOnlyMPSO.SetRootSignature(m_MeshRootSig);
+    DepthOnlyMPSO.SetRasterizerState(RasterizerDefault);
+    DepthOnlyMPSO.SetBlendState(BlendDisable);
+    DepthOnlyMPSO.SetDepthStencilState(DepthStateReadWrite);
+    DepthOnlyMPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+    DepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
+    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
+    DepthOnlyMPSO.Finalize();
+    sm_MPSOs.push_back(DepthOnlyMPSO);
+
+    GraphicsMPSO CutoutDepthMPSO(L"Renderer: Cutout Depth PSO");
+    CutoutDepthMPSO = DepthOnlyMPSO;
+    CutoutDepthMPSO.SetRasterizerState(RasterizerTwoSided);
+    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
+    CutoutDepthMPSO.SetPixelShader(g_pCutoutDepthPS, sizeof(g_pCutoutDepthPS));
+    CutoutDepthMPSO.Finalize();
+    sm_MPSOs.push_back(CutoutDepthMPSO);
+
+    GraphicsMPSO SkinDepthOnlyMPSO = DepthOnlyMPSO;
+    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
+    SkinDepthOnlyMPSO.Finalize();
+    sm_MPSOs.push_back(SkinDepthOnlyMPSO);
+
+    GraphicsMPSO SkinCutoutDepthMPSO = CutoutDepthMPSO;
+    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
+    SkinCutoutDepthMPSO.Finalize();
+    sm_MPSOs.push_back(SkinCutoutDepthMPSO);
+
+    ASSERT(sm_MPSOs.size() == 4);
+
+    //Shadow Meshlet PSOs
+
+    DepthOnlyMPSO.SetRasterizerState(RasterizerShadow);
+    DepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+    DepthOnlyMPSO.Finalize();
+    sm_MPSOs.push_back(DepthOnlyMPSO);
+
+    CutoutDepthMPSO.SetRasterizerState(RasterizerShadowTwoSided);
+    CutoutDepthMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+    CutoutDepthMPSO.Finalize();
+    sm_MPSOs.push_back(CutoutDepthMPSO);
+
+    SkinDepthOnlyMPSO.SetRasterizerState(RasterizerShadow);
+    SkinDepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+    SkinDepthOnlyMPSO.Finalize();
+    sm_MPSOs.push_back(SkinDepthOnlyMPSO);
+
+    SkinCutoutDepthMPSO.SetRasterizerState(RasterizerShadowTwoSided);
+    SkinCutoutDepthMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+    SkinCutoutDepthMPSO.Finalize();
+    sm_MPSOs.push_back(SkinCutoutDepthMPSO);
+
+    ASSERT(sm_MPSOs.size() == 8);
 
     // Default PSO
 
@@ -436,6 +519,132 @@ uint8_t Renderer::GetPSO(uint16_t psoFlags)
     return (uint8_t)sm_PSOs.size() - 2;
 }
 
+uint8_t Renderer::GetMPSO(uint16_t psoFlags)
+{
+    using namespace PSOFlags;
+
+    GraphicsPSO ColorPSO = m_DefaultPSO;
+
+    uint16_t Requirements = kHasPosition | kHasNormal;
+    ASSERT((psoFlags & Requirements) == Requirements);
+
+    std::vector<D3D12_INPUT_ELEMENT_DESC> vertexLayout;
+    if (psoFlags & kHasPosition)
+        vertexLayout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT });
+    if (psoFlags & kHasNormal)
+        vertexLayout.push_back({ "NORMAL",   0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
+    if (psoFlags & kHasTangent)
+        vertexLayout.push_back({ "TANGENT",  0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
+    if (psoFlags & kHasUV0)
+        vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
+    else
+        vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       1, D3D12_APPEND_ALIGNED_ELEMENT });
+    if (psoFlags & kHasUV1)
+        vertexLayout.push_back({ "TEXCOORD", 1, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
+    if (psoFlags & kHasSkin)
+    {
+        vertexLayout.push_back({ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+        vertexLayout.push_back({ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+    }
+
+    ColorPSO.SetInputLayout((uint32_t)vertexLayout.size(), vertexLayout.data());
+
+    if (psoFlags & kHasSkin)
+    {
+        if (psoFlags & kHasTangent)
+        {
+            if (psoFlags & kHasUV1)
+            {
+                ColorPSO.SetVertexShader(g_pDefaultSkinVS, sizeof(g_pDefaultSkinVS));
+                ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+            }
+            else
+            {
+                ColorPSO.SetVertexShader(g_pDefaultNoUV1SkinVS, sizeof(g_pDefaultNoUV1SkinVS));
+                ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
+            }
+        }
+        else
+        {
+            if (psoFlags & kHasUV1)
+            {
+                ColorPSO.SetVertexShader(g_pDefaultNoTangentSkinVS, sizeof(g_pDefaultNoTangentSkinVS));
+                ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
+            }
+            else
+            {
+                ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1SkinVS, sizeof(g_pDefaultNoTangentNoUV1SkinVS));
+                ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
+            }
+        }
+    }
+    else
+    {
+        if (psoFlags & kHasTangent)
+        {
+            if (psoFlags & kHasUV1)
+            {
+                ColorPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
+                ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+            }
+            else
+            {
+                ColorPSO.SetVertexShader(g_pDefaultNoUV1VS, sizeof(g_pDefaultNoUV1VS));
+                ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
+            }
+        }
+        else
+        {
+            if (psoFlags & kHasUV1)
+            {
+                ColorPSO.SetVertexShader(g_pDefaultNoTangentVS, sizeof(g_pDefaultNoTangentVS));
+                ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
+            }
+            else
+            {
+                ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1VS, sizeof(g_pDefaultNoTangentNoUV1VS));
+                ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
+            }
+        }
+    }
+
+    if (psoFlags & kAlphaBlend)
+    {
+        ColorPSO.SetBlendState(BlendPreMultiplied);
+        ColorPSO.SetDepthStencilState(DepthStateReadOnly);
+    }
+    if (psoFlags & kTwoSided)
+    {
+        ColorPSO.SetRasterizerState(RasterizerTwoSided);
+    }
+    ColorPSO.Finalize();
+
+    // Look for an existing PSO
+    for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
+    {
+        if (ColorPSO.GetPipelineStateObject() == sm_PSOs[i].GetPipelineStateObject())
+        {
+            return (uint8_t)i;
+        }
+    }
+
+    // If not found, keep the new one, and return its index
+    sm_PSOs.push_back(ColorPSO);
+
+    // The returned PSO index has read-write depth.  The index+1 tests for equal depth.
+    ColorPSO.SetDepthStencilState(DepthStateTestEqual);
+    ColorPSO.Finalize();
+#ifdef DEBUG
+    for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
+        ASSERT(ColorPSO.GetPipelineStateObject() != sm_PSOs[i].GetPipelineStateObject());
+#endif
+    sm_PSOs.push_back(ColorPSO);
+
+    ASSERT(sm_PSOs.size() <= 256, "Ran out of room for unique PSOs");
+
+    return (uint8_t)sm_PSOs.size() - 2;
+}
+
 void Renderer::DrawSkybox( GraphicsContext& gfxContext, const Camera& Camera, const D3D12_VIEWPORT& viewport, const D3D12_RECT& scissor )
 {
     ScopedTimer _prof(L"Draw Skybox", gfxContext);
@@ -468,6 +677,43 @@ void Renderer::DrawSkybox( GraphicsContext& gfxContext, const Camera& Camera, co
     gfxContext.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
     gfxContext.Draw(3);
 }
+
+//struct Subset
+//{
+//    uint32_t Offset;
+//    uint32_t Count;
+//};
+//
+//struct Meshlet
+//{
+//    uint32_t VertCount;
+//    uint32_t VertOffset;
+//    uint32_t PrimCount;
+//    uint32_t PrimOffset;
+//};
+//
+//union PackedTriangle
+//{
+//    struct
+//    {
+//        uint32_t i0 : 10;
+//        uint32_t i1 : 10;
+//        uint32_t i2 : 10;
+//        uint32_t _unused : 2;
+//    } indices;
+//    uint32_t packed;
+//};
+//
+//HRESULT ComputeMeshlets(
+//    uint32_t maxVerts, uint32_t maxPrims,
+//    const uint16_t* indices, uint32_t indexCount,
+//    const Subset* indexSubsets, uint32_t subsetCount,
+//    const XMFLOAT3* positions, uint32_t vertexCount,
+//    std::vector<Subset>& meshletSubsets,
+//    std::vector<Meshlet>& meshlets,
+//    std::vector<uint8_t>& uniqueVertexIndices,
+//    std::vector<PackedTriangle>& primitiveIndices);
+
 
 void MeshSorter::AddMesh( const Mesh& mesh, float distance,
     D3D12_GPU_VIRTUAL_ADDRESS meshCBV,
@@ -529,8 +775,80 @@ void MeshSorter::AddMesh( const Mesh& mesh, float distance,
     }
 
     SortObject object = { &mesh, skeleton, meshCBV, materialCBV, bufferPtr };
+
     m_SortObjects.push_back(object);
 }
+
+void MeshSorter::AddMesh(const Mesh& mesh, float distance,
+    D3D12_GPU_VIRTUAL_ADDRESS meshCBV,
+    D3D12_GPU_VIRTUAL_ADDRESS materialCBV,
+    D3D12_GPU_VIRTUAL_ADDRESS bufferPtr,
+    D3D12_GPU_VIRTUAL_ADDRESS meshletBufferPtr,
+    D3D12_GPU_VIRTUAL_ADDRESS uniqueIndexBufferPtr,
+    D3D12_GPU_VIRTUAL_ADDRESS primitiveBufferPtr,
+    const Joint* skeleton)
+{
+    SortKey key;
+    key.value = m_SortObjects.size();
+
+    bool alphaBlend = (mesh.psoFlags & PSOFlags::kAlphaBlend) == PSOFlags::kAlphaBlend;
+    bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
+    bool skinned = (mesh.psoFlags & PSOFlags::kHasSkin) == PSOFlags::kHasSkin;
+    uint64_t depthPSO = (skinned ? 2 : 0) + (alphaTest ? 1 : 0);
+
+    union float_or_int { float f; uint32_t u; } dist;
+    dist.f = Max(distance, 0.0f);
+
+    if (m_BatchType == kShadows)
+    {
+        if (alphaBlend)
+            return;
+
+        key.passID = kZPass;
+        key.psoIdx = depthPSO + 4;
+        key.key = dist.u;
+        m_SortKeys.push_back(key.value);
+        m_PassCounts[kZPass]++;
+    }
+    else if (mesh.psoFlags & PSOFlags::kAlphaBlend)
+    {
+        key.passID = kTransparent;
+        key.psoIdx = mesh.pso;
+        key.key = ~dist.u;
+        m_SortKeys.push_back(key.value);
+        m_PassCounts[kTransparent]++;
+    }
+    else if (SeparateZPass || alphaTest)
+    {
+        key.passID = kZPass;
+        key.psoIdx = depthPSO;
+        key.key = dist.u;
+        m_SortKeys.push_back(key.value);
+        m_PassCounts[kZPass]++;
+
+        key.passID = kOpaque;
+        key.psoIdx = mesh.pso + 1;
+        key.key = dist.u;
+        m_SortKeys.push_back(key.value);
+        m_PassCounts[kOpaque]++;
+    }
+    else
+    {
+        key.passID = kOpaque;
+        key.psoIdx = mesh.pso;
+        key.key = dist.u;
+        m_SortKeys.push_back(key.value);
+        m_PassCounts[kOpaque]++;
+    }
+
+    SortObject object = { &mesh, skeleton, meshCBV, materialCBV, bufferPtr };
+    object.meshletBufferPtr = meshletBufferPtr;
+    object.uIdxBufferPtr = uniqueIndexBufferPtr;
+    object.primBufferPtr = primitiveBufferPtr;
+
+    m_SortObjects.push_back(object);
+}
+
 
 void MeshSorter::Sort()
 {
@@ -684,7 +1002,7 @@ void MeshSorter::RenderMeshes(
 
             for (uint32_t i = 0; i < mesh.numDraws; ++i)
                 context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
-
+            
             ++m_CurrentDraw;
         }
     }
@@ -693,4 +1011,211 @@ void MeshSorter::RenderMeshes(
 	{
 		context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
+}
+
+
+void MeshSorter::RenderMeshes(
+    DrawPass pass,
+    GraphicsContext& context,
+    GlobalConstants& globals,
+    D3D12_GPU_VIRTUAL_ADDRESS& meshlets,
+    D3D12_GPU_VIRTUAL_ADDRESS& uniqueVertexIB,
+    D3D12_GPU_VIRTUAL_ADDRESS& primitiveIndices,
+    std::map<uint32_t, XMFLOAT4>& meshletAssocMap
+)
+{
+    ASSERT(m_DSV != nullptr);
+
+    Renderer::UpdateGlobalDescriptors();
+
+    context.SetRootSignature(m_RootSig);
+    context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer());
+    context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, s_SamplerHeap.GetHeapPointer());
+
+    // Set common textures
+    context.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
+
+    // Set common shader constants
+    globals.ViewProjMatrix = m_Camera->GetViewProjMatrix();
+    globals.CameraPos = m_Camera->GetPosition();
+    globals.IBLRange = s_SpecularIBLRange - s_SpecularIBLBias;
+    globals.IBLBias = s_SpecularIBLBias;
+    context.SetDynamicConstantBufferView(kCommonCBV, sizeof(GlobalConstants), &globals);
+
+    if (m_BatchType == kShadows)
+    {
+        context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE, true);
+        context.ClearDepth(*m_DSV);
+        context.SetDepthStencilTarget(m_DSV->GetDSV());
+
+        if (m_Viewport.Width == 0)
+        {
+            m_Viewport.TopLeftX = 0.0f;
+            m_Viewport.TopLeftY = 0.0f;
+            m_Viewport.Width = (float)m_DSV->GetWidth();
+            m_Viewport.Height = (float)m_DSV->GetHeight();
+            m_Viewport.MaxDepth = 1.0f;
+            m_Viewport.MinDepth = 0.0f;
+
+            m_Scissor.left = 1;
+            m_Scissor.right = m_DSV->GetWidth() - 2;
+            m_Scissor.top = 1;
+            m_Scissor.bottom = m_DSV->GetHeight() - 2;
+        }
+    }
+    else
+    {
+        for (uint32_t i = 0; i < m_NumRTVs; ++i)
+        {
+            ASSERT(m_RTV[i] != nullptr);
+            ASSERT(m_DSV->GetWidth() == m_RTV[i]->GetWidth());
+            ASSERT(m_DSV->GetHeight() == m_RTV[i]->GetHeight());
+        }
+
+        if (m_Viewport.Width == 0)
+        {
+            m_Viewport.TopLeftX = 0.0f;
+            m_Viewport.TopLeftY = 0.0f;
+            m_Viewport.Width = (float)m_DSV->GetWidth();
+            m_Viewport.Height = (float)m_DSV->GetHeight();
+            m_Viewport.MaxDepth = 1.0f;
+            m_Viewport.MinDepth = 0.0f;
+
+            m_Scissor.left = 0;
+            m_Scissor.right = m_DSV->GetWidth();
+            m_Scissor.top = 0;
+            m_Scissor.bottom = m_DSV->GetWidth();
+        }
+    }
+
+    for (; m_CurrentPass <= pass; m_CurrentPass = (DrawPass)(m_CurrentPass + 1))
+    {
+        const uint32_t passCount = m_PassCounts[m_CurrentPass];
+        if (passCount == 0)
+            continue;
+
+        if (m_BatchType == kDefault)
+        {
+            switch (m_CurrentPass)
+            {
+            case kZPass:
+                context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+                context.SetDepthStencilTarget(m_DSV->GetDSV());
+                break;
+            case kOpaque:
+                if (SeparateZPass)
+                {
+                    context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_READ);
+                    context.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+                    context.SetRenderTarget(g_SceneColorBuffer.GetRTV(), m_DSV->GetDSV_DepthReadOnly());
+                }
+                else
+                {
+                    context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+                    context.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+                    context.SetRenderTarget(g_SceneColorBuffer.GetRTV(), m_DSV->GetDSV());
+                }
+                break;
+            case kTransparent:
+                context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_DEPTH_READ);
+                context.TransitionResource(g_SceneColorBuffer, D3D12_RESOURCE_STATE_RENDER_TARGET);
+                context.SetRenderTarget(g_SceneColorBuffer.GetRTV(), m_DSV->GetDSV_DepthReadOnly());
+                break;
+            }
+        }
+
+        context.SetViewportAndScissor(m_Viewport, m_Scissor);
+        context.FlushResourceBarriers();
+
+        const uint32_t lastDraw = m_CurrentDraw + passCount;
+
+        while (m_CurrentDraw < lastDraw)
+        {
+            SortKey key;
+            key.value = m_SortKeys[m_CurrentDraw];
+            const SortObject& object = m_SortObjects[key.objectIdx];
+            const Mesh& mesh = *object.mesh;
+
+            /*context.SetConstantBuffer(kMeshConstants, object.meshCBV);
+            context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
+            context.SetDescriptorTable(kMaterialSRVs, s_TextureHeap[mesh.srvTable]);
+            context.SetDescriptorTable(kMaterialSamplers, s_SamplerHeap[mesh.samplerTable]);*/
+
+            //There arent any meshes with skeletons
+            //if (mesh.numJoints > 0)
+            //{
+            //    ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
+            //    context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
+            //}
+
+            context.SetPipelineState(sm_PSOs[key.psoIdx]);  //load shader?
+
+
+            //TODO:
+            /// MIGHT Need to pass in the vertex stride as it changes between visible and depth shaders
+            /// MIGHT need to pass the GPU the offest from the first meshlet instead of giving the offset address
+
+            assert(mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_FLOAT);
+            context.GetCommandList()->SetGraphicsRoot32BitConstant(1, sizeof(uint16_t), 0); //Size of an index in bytes
+            
+
+            if (m_CurrentPass == kZPass)
+            {
+                //bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
+                //uint32_t stride = alphaTest ? 16u : 12u;
+                //if (mesh.numJoints > 0)
+                    //stride += 16;
+                //context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbDepthOffset, mesh.vbDepthSize, stride });
+                //context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbDepthOffset);     //depth buffer stuff, pretty sure it is not needed if all vert data is treated as thesame size
+                context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbOffset);     //vertex buffer
+            }
+            else
+            {
+                //context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbOffset, mesh.vbSize, mesh.vbStride });
+                context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbOffset);     //vertex buffer
+            }
+
+            //context.SetIndexBuffer({ object.bufferPtr + mesh.ibOffset, mesh.ibSize, (DXGI_FORMAT)mesh.ibFormat });
+
+            //for (uint32_t i = 0; i < mesh.numDraws; ++i)
+            //    context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
+
+
+            
+            context.GetCommandList()->SetGraphicsRootShaderResourceView(4, object.uIdxBufferPtr + meshletAssocMap[mesh.ibOffset].y);
+            context.GetCommandList()->SetGraphicsRootShaderResourceView(5, object.primBufferPtr + meshletAssocMap[mesh.ibOffset].z);
+
+
+            int MeshletCount = meshletAssocMap[mesh.ibOffset].w;
+
+            int reps = MeshletCount / 128;
+            for (int i = 0; i < reps; ++i) {
+
+                int offset = i * sizeof(DirectX::Meshlet);
+                context.GetCommandList()->SetGraphicsRootShaderResourceView(3, object.meshletBufferPtr + meshletAssocMap[mesh.ibOffset].x + offset);
+
+                if (i != reps - 1) {
+                    context.GetCommandList()->DispatchMesh(128, 1, 1);
+                }
+                else {
+                    context.GetCommandList()->DispatchMesh(MeshletCount % 128, 1, 1);
+                }
+            }
+
+            //for (auto& subset : mesh.MeshletSubsets)
+            //{
+            //    m_commandList->SetGraphicsRoot32BitConstant(1, subset.Offset, 1);
+            //    m_commandList->DispatchMesh(subset.Count, 1, 1);
+            //}
+
+
+            ++m_CurrentDraw;
+        }
+    }
+
+    if (m_BatchType == kShadows)
+    {
+        context.TransitionResource(*m_DSV, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+    }
 }
