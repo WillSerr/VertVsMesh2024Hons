@@ -41,7 +41,15 @@
 #include "CompiledShaders/CutoutDepthPS.h"
 #include "CompiledShaders/SkyboxVS.h"
 #include "CompiledShaders/SkyboxPS.h"
+
+#include "CompiledShaders/DepthOnlyMS.h"
+#include "CompiledShaders/DepthOnlySkinMS.h"
+#include "CompiledShaders/CutoutDepthMS.h"
+#include "CompiledShaders/CutoutDepthSkinMS.h"
+#include "CompiledShaders/CutoutDepthMPS.h"
 #include "CompiledShaders/DefaultMS.h"
+#include "CompiledShaders/SkyboxMS.h"
+#include "CompiledShaders/DefaultNoUV1MS.h"
 
 #include "DirectXMesh.h"
 
@@ -72,7 +80,9 @@ namespace Renderer
     RootSignature m_RootSig;
     RootSignature m_MeshRootSig;
     GraphicsPSO m_SkyboxPSO(L"Renderer: Skybox PSO");
+    GraphicsMPSO m_SkyboxMeshPSO(L"Renderer: Skybox MPSO");
     GraphicsPSO m_DefaultPSO(L"Renderer: Default PSO"); // Not finalized.  Used as a template.
+    GraphicsMPSO m_DefaultMeshPSO(L"Renderer: Default MPSO"); // Not finalized.  Used as a template.
 
     DescriptorHandle m_CommonTextures;
 }
@@ -101,7 +111,7 @@ void Renderer::Initialize(void)
     m_RootSig[kSkinMatrices].InitAsBufferSRV(20, D3D12_SHADER_VISIBILITY_VERTEX);
     m_RootSig.Finalize(L"RootSig", D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
-    m_MeshRootSig.Reset(kNumRootBindings + 4, 3);
+    m_MeshRootSig.Reset(kNumRootBindings + 5, 3);
     m_MeshRootSig.InitStaticSampler(10, DefaultSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
     m_MeshRootSig.InitStaticSampler(11, SamplerShadowDesc, D3D12_SHADER_VISIBILITY_PIXEL);
     m_MeshRootSig.InitStaticSampler(12, CubeMapSamplerDesc, D3D12_SHADER_VISIBILITY_PIXEL);
@@ -116,6 +126,7 @@ void Renderer::Initialize(void)
     m_MeshRootSig[kSkinMatrices + 2].InitAsBufferSRV(22, D3D12_SHADER_VISIBILITY_MESH);
     m_MeshRootSig[kSkinMatrices + 3].InitAsBufferSRV(23, D3D12_SHADER_VISIBILITY_MESH);
     m_MeshRootSig[kSkinMatrices + 4].InitAsBufferSRV(24, D3D12_SHADER_VISIBILITY_MESH);
+    m_MeshRootSig[kSkinMatrices + 5].InitAsConstants(2, D3D12_SHADER_VISIBILITY_MESH);
     m_MeshRootSig.Finalize(L"MeshRootSig");
 
     DXGI_FORMAT ColorFormat = g_SceneColorBuffer.GetFormat();
@@ -147,150 +158,173 @@ void Renderer::Initialize(void)
         { "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
     };
 
-    ASSERT(sm_PSOs.size() == 0);
+    //Vertex PSOs
+    {
+        ASSERT(sm_PSOs.size() == 0);
 
-    // Depth Only PSOs
+        // Depth Only PSOs
 
-    GraphicsPSO DepthOnlyPSO(L"Renderer: Depth Only PSO");
-    DepthOnlyPSO.SetRootSignature(m_RootSig);
-    DepthOnlyPSO.SetRasterizerState(RasterizerDefault);
-    DepthOnlyPSO.SetBlendState(BlendDisable);
-    DepthOnlyPSO.SetDepthStencilState(DepthStateReadWrite);
-    DepthOnlyPSO.SetInputLayout(_countof(posOnly), posOnly);
-    DepthOnlyPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-    DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
-    DepthOnlyPSO.SetVertexShader(g_pDepthOnlyVS, sizeof(g_pDepthOnlyVS));
-    DepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(DepthOnlyPSO);
+        GraphicsPSO DepthOnlyPSO(L"Renderer: Depth Only PSO");
+        DepthOnlyPSO.SetRootSignature(m_RootSig);
+        DepthOnlyPSO.SetRasterizerState(RasterizerDefault);
+        DepthOnlyPSO.SetBlendState(BlendDisable);
+        DepthOnlyPSO.SetDepthStencilState(DepthStateReadWrite);
+        DepthOnlyPSO.SetInputLayout(_countof(posOnly), posOnly);
+        DepthOnlyPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+        DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
+        DepthOnlyPSO.SetVertexShader(g_pDepthOnlyVS, sizeof(g_pDepthOnlyVS));
+        DepthOnlyPSO.Finalize();
+        sm_PSOs.push_back(DepthOnlyPSO);
 
-    GraphicsPSO CutoutDepthPSO(L"Renderer: Cutout Depth PSO");
-    CutoutDepthPSO = DepthOnlyPSO;
-    CutoutDepthPSO.SetInputLayout(_countof(posAndUV), posAndUV);
-    CutoutDepthPSO.SetRasterizerState(RasterizerTwoSided);
-    CutoutDepthPSO.SetVertexShader(g_pCutoutDepthVS, sizeof(g_pCutoutDepthVS));
-    CutoutDepthPSO.SetPixelShader(g_pCutoutDepthPS, sizeof(g_pCutoutDepthPS));
-    CutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(CutoutDepthPSO);
+        GraphicsPSO CutoutDepthPSO(L"Renderer: Cutout Depth PSO");
+        CutoutDepthPSO = DepthOnlyPSO;
+        CutoutDepthPSO.SetInputLayout(_countof(posAndUV), posAndUV);
+        CutoutDepthPSO.SetRasterizerState(RasterizerTwoSided);
+        CutoutDepthPSO.SetVertexShader(g_pCutoutDepthVS, sizeof(g_pCutoutDepthVS));
+        CutoutDepthPSO.SetPixelShader(g_pCutoutDepthPS, sizeof(g_pCutoutDepthPS));
+        CutoutDepthPSO.Finalize();
+        sm_PSOs.push_back(CutoutDepthPSO);
 
-    GraphicsPSO SkinDepthOnlyPSO = DepthOnlyPSO;
-    SkinDepthOnlyPSO.SetInputLayout(_countof(skinPos), skinPos);
-    SkinDepthOnlyPSO.SetVertexShader(g_pDepthOnlySkinVS, sizeof(g_pDepthOnlySkinVS));
-    SkinDepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(SkinDepthOnlyPSO);
+        GraphicsPSO SkinDepthOnlyPSO = DepthOnlyPSO;
+        SkinDepthOnlyPSO.SetInputLayout(_countof(skinPos), skinPos);
+        SkinDepthOnlyPSO.SetVertexShader(g_pDepthOnlySkinVS, sizeof(g_pDepthOnlySkinVS));
+        SkinDepthOnlyPSO.Finalize();
+        sm_PSOs.push_back(SkinDepthOnlyPSO);
 
-    GraphicsPSO SkinCutoutDepthPSO = CutoutDepthPSO;
-    SkinCutoutDepthPSO.SetInputLayout(_countof(skinPosAndUV), skinPosAndUV);
-    SkinCutoutDepthPSO.SetVertexShader(g_pCutoutDepthSkinVS, sizeof(g_pCutoutDepthSkinVS));
-    SkinCutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(SkinCutoutDepthPSO);
+        GraphicsPSO SkinCutoutDepthPSO = CutoutDepthPSO;
+        SkinCutoutDepthPSO.SetInputLayout(_countof(skinPosAndUV), skinPosAndUV);
+        SkinCutoutDepthPSO.SetVertexShader(g_pCutoutDepthSkinVS, sizeof(g_pCutoutDepthSkinVS));
+        SkinCutoutDepthPSO.Finalize();
+        sm_PSOs.push_back(SkinCutoutDepthPSO);
 
-    ASSERT(sm_PSOs.size() == 4);
+        ASSERT(sm_PSOs.size() == 4);
 
-    // Shadow PSOs
+        // Shadow PSOs
 
-    DepthOnlyPSO.SetRasterizerState(RasterizerShadow);
-    DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    DepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(DepthOnlyPSO);
+        DepthOnlyPSO.SetRasterizerState(RasterizerShadow);
+        DepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        DepthOnlyPSO.Finalize();
+        sm_PSOs.push_back(DepthOnlyPSO);
 
-    CutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
-    CutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    CutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(CutoutDepthPSO);
+        CutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
+        CutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        CutoutDepthPSO.Finalize();
+        sm_PSOs.push_back(CutoutDepthPSO);
 
-    SkinDepthOnlyPSO.SetRasterizerState(RasterizerShadow);
-    SkinDepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    SkinDepthOnlyPSO.Finalize();
-    sm_PSOs.push_back(SkinDepthOnlyPSO);
+        SkinDepthOnlyPSO.SetRasterizerState(RasterizerShadow);
+        SkinDepthOnlyPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        SkinDepthOnlyPSO.Finalize();
+        sm_PSOs.push_back(SkinDepthOnlyPSO);
 
-    SkinCutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
-    SkinCutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    SkinCutoutDepthPSO.Finalize();
-    sm_PSOs.push_back(SkinCutoutDepthPSO);
+        SkinCutoutDepthPSO.SetRasterizerState(RasterizerShadowTwoSided);
+        SkinCutoutDepthPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        SkinCutoutDepthPSO.Finalize();
+        sm_PSOs.push_back(SkinCutoutDepthPSO);
 
-    ASSERT(sm_PSOs.size() == 8);
+        ASSERT(sm_PSOs.size() == 8);
+
+        // Default PSO
+
+        m_DefaultPSO.SetRootSignature(m_RootSig);
+        m_DefaultPSO.SetRasterizerState(RasterizerDefault);
+        m_DefaultPSO.SetBlendState(BlendDisable);
+        m_DefaultPSO.SetDepthStencilState(DepthStateReadWrite);
+        m_DefaultPSO.SetInputLayout(0, nullptr);
+        m_DefaultPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+        m_DefaultPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
+        m_DefaultPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
+        m_DefaultPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+
+        // Skybox PSO
+
+        m_SkyboxPSO = m_DefaultPSO;
+        m_SkyboxPSO.SetDepthStencilState(DepthStateReadOnly);
+        m_SkyboxPSO.SetInputLayout(0, nullptr);
+        m_SkyboxPSO.SetVertexShader(g_pSkyboxVS, sizeof(g_pSkyboxVS));
+        m_SkyboxPSO.SetPixelShader(g_pSkyboxPS, sizeof(g_pSkyboxPS));
+        m_SkyboxPSO.Finalize();
+    }
 
     // Meshlet PSOs
+    {
+        ASSERT(sm_MPSOs.size() == 0);
 
-    ASSERT(sm_MPSOs.size() == 0);
+        // Depth Only Meshlet PSOs
 
-    // Depth Only Meshlet PSOs
+        GraphicsMPSO DepthOnlyMPSO(L"Renderer: Depth Only MPSO");
+        DepthOnlyMPSO.SetRootSignature(m_MeshRootSig);
+        DepthOnlyMPSO.SetRasterizerState(RasterizerDefault);
+        DepthOnlyMPSO.SetBlendState(BlendDisable);
+        DepthOnlyMPSO.SetDepthStencilState(DepthStateReadWrite);
+        DepthOnlyMPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+        DepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
+        DepthOnlyMPSO.SetMeshShader(g_pDepthOnlyMS, sizeof(g_pDepthOnlyMS));
+        DepthOnlyMPSO.Finalize();
+        sm_MPSOs.push_back(DepthOnlyMPSO);
 
-    GraphicsMPSO DepthOnlyMPSO(L"Renderer: Depth Only MPSO");
-    DepthOnlyMPSO.SetRootSignature(m_MeshRootSig);
-    DepthOnlyMPSO.SetRasterizerState(RasterizerDefault);
-    DepthOnlyMPSO.SetBlendState(BlendDisable);
-    DepthOnlyMPSO.SetDepthStencilState(DepthStateReadWrite);
-    DepthOnlyMPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-    DepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, DepthFormat);
-    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
-    DepthOnlyMPSO.Finalize();
-    sm_MPSOs.push_back(DepthOnlyMPSO);
+        GraphicsMPSO CutoutDepthMPSO(L"Renderer: Cutout Depth PSO");
+        CutoutDepthMPSO = DepthOnlyMPSO;
+        CutoutDepthMPSO.SetRasterizerState(RasterizerTwoSided);
+        CutoutDepthMPSO.SetMeshShader(g_pCutoutDepthMS, sizeof(g_pCutoutDepthMS));
+        CutoutDepthMPSO.SetPixelShader(g_pCutoutDepthMPS, sizeof(g_pCutoutDepthMPS));
+        CutoutDepthMPSO.Finalize();
+        sm_MPSOs.push_back(CutoutDepthMPSO);
 
-    GraphicsMPSO CutoutDepthMPSO(L"Renderer: Cutout Depth PSO");
-    CutoutDepthMPSO = DepthOnlyMPSO;
-    CutoutDepthMPSO.SetRasterizerState(RasterizerTwoSided);
-    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
-    CutoutDepthMPSO.SetPixelShader(g_pCutoutDepthPS, sizeof(g_pCutoutDepthPS));
-    CutoutDepthMPSO.Finalize();
-    sm_MPSOs.push_back(CutoutDepthMPSO);
+        GraphicsMPSO SkinDepthOnlyMPSO = DepthOnlyMPSO;
+        SkinDepthOnlyMPSO.SetMeshShader(g_pDepthOnlySkinMS, sizeof(g_pDepthOnlySkinMS));
+        SkinDepthOnlyMPSO.Finalize();
+        sm_MPSOs.push_back(SkinDepthOnlyMPSO);
 
-    GraphicsMPSO SkinDepthOnlyMPSO = DepthOnlyMPSO;
-    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
-    SkinDepthOnlyMPSO.Finalize();
-    sm_MPSOs.push_back(SkinDepthOnlyMPSO);
+        GraphicsMPSO SkinCutoutDepthMPSO = CutoutDepthMPSO;
+        SkinCutoutDepthMPSO.SetMeshShader(g_pCutoutDepthSkinMS, sizeof(g_pCutoutDepthSkinMS));
+        SkinCutoutDepthMPSO.Finalize();
+        sm_MPSOs.push_back(SkinCutoutDepthMPSO);
 
-    GraphicsMPSO SkinCutoutDepthMPSO = CutoutDepthMPSO;
-    DepthOnlyMPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
-    SkinCutoutDepthMPSO.Finalize();
-    sm_MPSOs.push_back(SkinCutoutDepthMPSO);
+        ASSERT(sm_MPSOs.size() == 4);
 
-    ASSERT(sm_MPSOs.size() == 4);
+        //Shadow Meshlet PSOs
 
-    //Shadow Meshlet PSOs
+        DepthOnlyMPSO.SetRasterizerState(RasterizerShadow);
+        DepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        DepthOnlyMPSO.Finalize();
+        sm_MPSOs.push_back(DepthOnlyMPSO);
 
-    DepthOnlyMPSO.SetRasterizerState(RasterizerShadow);
-    DepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    DepthOnlyMPSO.Finalize();
-    sm_MPSOs.push_back(DepthOnlyMPSO);
+        CutoutDepthMPSO.SetRasterizerState(RasterizerShadowTwoSided);
+        CutoutDepthMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        CutoutDepthMPSO.Finalize();
+        sm_MPSOs.push_back(CutoutDepthMPSO);
 
-    CutoutDepthMPSO.SetRasterizerState(RasterizerShadowTwoSided);
-    CutoutDepthMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    CutoutDepthMPSO.Finalize();
-    sm_MPSOs.push_back(CutoutDepthMPSO);
+        SkinDepthOnlyMPSO.SetRasterizerState(RasterizerShadow);
+        SkinDepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        SkinDepthOnlyMPSO.Finalize();
+        sm_MPSOs.push_back(SkinDepthOnlyMPSO);
 
-    SkinDepthOnlyMPSO.SetRasterizerState(RasterizerShadow);
-    SkinDepthOnlyMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    SkinDepthOnlyMPSO.Finalize();
-    sm_MPSOs.push_back(SkinDepthOnlyMPSO);
+        SkinCutoutDepthMPSO.SetRasterizerState(RasterizerShadowTwoSided);
+        SkinCutoutDepthMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
+        SkinCutoutDepthMPSO.Finalize();
+        sm_MPSOs.push_back(SkinCutoutDepthMPSO);
 
-    SkinCutoutDepthMPSO.SetRasterizerState(RasterizerShadowTwoSided);
-    SkinCutoutDepthMPSO.SetRenderTargetFormats(0, nullptr, g_ShadowBuffer.GetFormat());
-    SkinCutoutDepthMPSO.Finalize();
-    sm_MPSOs.push_back(SkinCutoutDepthMPSO);
+        ASSERT(sm_MPSOs.size() == 8);
 
-    ASSERT(sm_MPSOs.size() == 8);
+        // Default MPSO
 
-    // Default PSO
+        m_DefaultMeshPSO.SetRootSignature(m_MeshRootSig);
+        m_DefaultMeshPSO.SetRasterizerState(RasterizerDefault);
+        m_DefaultMeshPSO.SetBlendState(BlendDisable);
+        m_DefaultMeshPSO.SetDepthStencilState(DepthStateReadWrite);
+        m_DefaultMeshPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
+        m_DefaultMeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
+        m_DefaultMeshPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
+        m_DefaultMeshPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
 
-    m_DefaultPSO.SetRootSignature(m_RootSig);
-    m_DefaultPSO.SetRasterizerState(RasterizerDefault);
-    m_DefaultPSO.SetBlendState(BlendDisable);
-    m_DefaultPSO.SetDepthStencilState(DepthStateReadWrite);
-    m_DefaultPSO.SetInputLayout(0, nullptr);
-    m_DefaultPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
-    m_DefaultPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
-    m_DefaultPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
-    m_DefaultPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+        // Skybox MPSO
 
-    // Skybox PSO
-
-    m_SkyboxPSO = m_DefaultPSO;
-    m_SkyboxPSO.SetDepthStencilState(DepthStateReadOnly);
-    m_SkyboxPSO.SetInputLayout(0, nullptr);
-    m_SkyboxPSO.SetVertexShader(g_pSkyboxVS, sizeof(g_pSkyboxVS));
-    m_SkyboxPSO.SetPixelShader(g_pSkyboxPS, sizeof(g_pSkyboxPS));
-    m_SkyboxPSO.Finalize();
+        m_SkyboxMeshPSO = m_DefaultMeshPSO;
+        m_SkyboxMeshPSO.SetDepthStencilState(DepthStateReadOnly);
+        m_SkyboxMeshPSO.SetMeshShader(g_pSkyboxMS, sizeof(g_pSkyboxMS));
+        m_SkyboxMeshPSO.SetPixelShader(g_pSkyboxPS, sizeof(g_pSkyboxPS));
+        m_SkyboxMeshPSO.Finalize();
+    }
 
     TextureManager::Initialize(L"");
 
@@ -523,31 +557,31 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
 {
     using namespace PSOFlags;
 
-    GraphicsPSO ColorPSO = m_DefaultPSO;
+    GraphicsMPSO ColorPSO = m_DefaultMeshPSO;
 
     uint16_t Requirements = kHasPosition | kHasNormal;
     ASSERT((psoFlags & Requirements) == Requirements);
 
-    std::vector<D3D12_INPUT_ELEMENT_DESC> vertexLayout;
-    if (psoFlags & kHasPosition)
-        vertexLayout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT });
-    if (psoFlags & kHasNormal)
-        vertexLayout.push_back({ "NORMAL",   0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
-    if (psoFlags & kHasTangent)
-        vertexLayout.push_back({ "TANGENT",  0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
-    if (psoFlags & kHasUV0)
-        vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
-    else
-        vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       1, D3D12_APPEND_ALIGNED_ELEMENT });
-    if (psoFlags & kHasUV1)
-        vertexLayout.push_back({ "TEXCOORD", 1, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
-    if (psoFlags & kHasSkin)
-    {
-        vertexLayout.push_back({ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-        vertexLayout.push_back({ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
-    }
+    //std::vector<D3D12_INPUT_ELEMENT_DESC> vertexLayout;
+    //if (psoFlags & kHasPosition)
+    //    vertexLayout.push_back({ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D12_APPEND_ALIGNED_ELEMENT });
+    //if (psoFlags & kHasNormal)
+    //    vertexLayout.push_back({ "NORMAL",   0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
+    //if (psoFlags & kHasTangent)
+    //    vertexLayout.push_back({ "TANGENT",  0, DXGI_FORMAT_R10G10B10A2_UNORM,  0, D3D12_APPEND_ALIGNED_ELEMENT });
+    //if (psoFlags & kHasUV0)
+    //    vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
+    //else
+    //    vertexLayout.push_back({ "TEXCOORD", 0, DXGI_FORMAT_R16G16_FLOAT,       1, D3D12_APPEND_ALIGNED_ELEMENT });
+    //if (psoFlags & kHasUV1)
+    //    vertexLayout.push_back({ "TEXCOORD", 1, DXGI_FORMAT_R16G16_FLOAT,       0, D3D12_APPEND_ALIGNED_ELEMENT });
+    //if (psoFlags & kHasSkin)
+    //{
+    //    vertexLayout.push_back({ "BLENDINDICES", 0, DXGI_FORMAT_R16G16B16A16_UINT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+    //    vertexLayout.push_back({ "BLENDWEIGHT", 0, DXGI_FORMAT_R16G16B16A16_UNORM, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 });
+    //}
 
-    ColorPSO.SetInputLayout((uint32_t)vertexLayout.size(), vertexLayout.data());
+    //ColorPSO.SetInputLayout((uint32_t)vertexLayout.size(), vertexLayout.data());
 
     if (psoFlags & kHasSkin)
     {
@@ -555,12 +589,14 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
         {
             if (psoFlags & kHasUV1)
             {
-                ColorPSO.SetVertexShader(g_pDefaultSkinVS, sizeof(g_pDefaultSkinVS));
+                //ColorPSO.SetVertexShader(g_pDefaultSkinVS, sizeof(g_pDefaultSkinVS));
+                ASSERT(false, "no shader");
                 ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
             }
             else
             {
-                ColorPSO.SetVertexShader(g_pDefaultNoUV1SkinVS, sizeof(g_pDefaultNoUV1SkinVS));
+                //ColorPSO.SetVertexShader(g_pDefaultNoUV1SkinVS, sizeof(g_pDefaultNoUV1SkinVS));
+                ASSERT(false, "no shader");
                 ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
             }
         }
@@ -568,12 +604,14 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
         {
             if (psoFlags & kHasUV1)
             {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentSkinVS, sizeof(g_pDefaultNoTangentSkinVS));
+                //ColorPSO.SetVertexShader(g_pDefaultNoTangentSkinVS, sizeof(g_pDefaultNoTangentSkinVS));
+                ASSERT(false, "no shader");
                 ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
             }
             else
             {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1SkinVS, sizeof(g_pDefaultNoTangentNoUV1SkinVS));
+                //ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1SkinVS, sizeof(g_pDefaultNoTangentNoUV1SkinVS));
+                ASSERT(false, "no shader");
                 ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
             }
         }
@@ -584,12 +622,12 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
         {
             if (psoFlags & kHasUV1)
             {
-                ColorPSO.SetVertexShader(g_pDefaultVS, sizeof(g_pDefaultVS));
+                ColorPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
                 ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
             }
             else
             {
-                ColorPSO.SetVertexShader(g_pDefaultNoUV1VS, sizeof(g_pDefaultNoUV1VS));
+                ColorPSO.SetMeshShader(g_pDefaultNoUV1MS, sizeof(g_pDefaultNoUV1MS));
                 ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
             }
         }
@@ -597,12 +635,14 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
         {
             if (psoFlags & kHasUV1)
             {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentVS, sizeof(g_pDefaultNoTangentVS));
+                //ColorPSO.SetVertexShader(g_pDefaultNoTangentVS, sizeof(g_pDefaultNoTangentVS));
+                ASSERT(false, "no shader");
                 ColorPSO.SetPixelShader(g_pDefaultNoTangentPS, sizeof(g_pDefaultNoTangentPS));
             }
             else
             {
-                ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1VS, sizeof(g_pDefaultNoTangentNoUV1VS));
+                //ColorPSO.SetVertexShader(g_pDefaultNoTangentNoUV1VS, sizeof(g_pDefaultNoTangentNoUV1VS));
+                ASSERT(false, "no shader");
                 ColorPSO.SetPixelShader(g_pDefaultNoTangentNoUV1PS, sizeof(g_pDefaultNoTangentNoUV1PS));
             }
         }
@@ -620,29 +660,29 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
     ColorPSO.Finalize();
 
     // Look for an existing PSO
-    for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
+    for (uint32_t i = 0; i < sm_MPSOs.size(); ++i)
     {
-        if (ColorPSO.GetPipelineStateObject() == sm_PSOs[i].GetPipelineStateObject())
+        if (ColorPSO.GetPipelineStateObject() == sm_MPSOs[i].GetPipelineStateObject())
         {
             return (uint8_t)i;
         }
     }
 
     // If not found, keep the new one, and return its index
-    sm_PSOs.push_back(ColorPSO);
+    sm_MPSOs.push_back(ColorPSO);
 
     // The returned PSO index has read-write depth.  The index+1 tests for equal depth.
     ColorPSO.SetDepthStencilState(DepthStateTestEqual);
     ColorPSO.Finalize();
 #ifdef DEBUG
-    for (uint32_t i = 0; i < sm_PSOs.size(); ++i)
-        ASSERT(ColorPSO.GetPipelineStateObject() != sm_PSOs[i].GetPipelineStateObject());
+    for (uint32_t i = 0; i < sm_MPSOs.size(); ++i)
+        ASSERT(ColorPSO.GetPipelineStateObject() != sm_MPSOs[i].GetPipelineStateObject());
 #endif
-    sm_PSOs.push_back(ColorPSO);
+    sm_MPSOs.push_back(ColorPSO);
 
-    ASSERT(sm_PSOs.size() <= 256, "Ran out of room for unique PSOs");
+    ASSERT(sm_MPSOs.size() <= 256, "Ran out of room for unique PSOs");
 
-    return (uint8_t)sm_PSOs.size() - 2;
+    return (uint8_t)sm_MPSOs.size() - 2;
 }
 
 void Renderer::DrawSkybox( GraphicsContext& gfxContext, const Camera& Camera, const D3D12_VIEWPORT& viewport, const D3D12_RECT& scissor )
@@ -677,43 +717,6 @@ void Renderer::DrawSkybox( GraphicsContext& gfxContext, const Camera& Camera, co
     gfxContext.SetDescriptorTable(kCommonSRVs, m_CommonTextures);
     gfxContext.Draw(3);
 }
-
-//struct Subset
-//{
-//    uint32_t Offset;
-//    uint32_t Count;
-//};
-//
-//struct Meshlet
-//{
-//    uint32_t VertCount;
-//    uint32_t VertOffset;
-//    uint32_t PrimCount;
-//    uint32_t PrimOffset;
-//};
-//
-//union PackedTriangle
-//{
-//    struct
-//    {
-//        uint32_t i0 : 10;
-//        uint32_t i1 : 10;
-//        uint32_t i2 : 10;
-//        uint32_t _unused : 2;
-//    } indices;
-//    uint32_t packed;
-//};
-//
-//HRESULT ComputeMeshlets(
-//    uint32_t maxVerts, uint32_t maxPrims,
-//    const uint16_t* indices, uint32_t indexCount,
-//    const Subset* indexSubsets, uint32_t subsetCount,
-//    const XMFLOAT3* positions, uint32_t vertexCount,
-//    std::vector<Subset>& meshletSubsets,
-//    std::vector<Meshlet>& meshlets,
-//    std::vector<uint8_t>& uniqueVertexIndices,
-//    std::vector<PackedTriangle>& primitiveIndices);
-
 
 void MeshSorter::AddMesh( const Mesh& mesh, float distance,
     D3D12_GPU_VIRTUAL_ADDRESS meshCBV,
@@ -1013,22 +1016,21 @@ void MeshSorter::RenderMeshes(
 	}
 }
 
-
 void MeshSorter::RenderMeshes(
     DrawPass pass,
     GraphicsContext& context,
     GlobalConstants& globals,
-    D3D12_GPU_VIRTUAL_ADDRESS& meshlets,
-    D3D12_GPU_VIRTUAL_ADDRESS& uniqueVertexIB,
-    D3D12_GPU_VIRTUAL_ADDRESS& primitiveIndices,
-    std::map<uint32_t, XMFLOAT4>& meshletAssocMap
+    D3D12_GPU_VIRTUAL_ADDRESS meshlets,
+    D3D12_GPU_VIRTUAL_ADDRESS uniqueVertexIB,
+    D3D12_GPU_VIRTUAL_ADDRESS primitiveIndices,
+    std::map<uint32_t, DirectX::XMUINT4>& meshletAssocMap
 )
 {
     ASSERT(m_DSV != nullptr);
 
     Renderer::UpdateGlobalDescriptors();
 
-    context.SetRootSignature(m_RootSig);
+    context.SetRootSignature(m_MeshRootSig);
     context.SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, s_TextureHeap.GetHeapPointer());
     context.SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, s_SamplerHeap.GetHeapPointer());
@@ -1128,8 +1130,8 @@ void MeshSorter::RenderMeshes(
         context.SetViewportAndScissor(m_Viewport, m_Scissor);
         context.FlushResourceBarriers();
 
-        const uint32_t lastDraw = m_CurrentDraw + passCount;
-
+        const uint32_t lastDraw = m_CurrentDraw + passCount;// Min(passCount, 17);
+        //int SuccessfullDraws = 0;
         while (m_CurrentDraw < lastDraw)
         {
             SortKey key;
@@ -1137,28 +1139,34 @@ void MeshSorter::RenderMeshes(
             const SortObject& object = m_SortObjects[key.objectIdx];
             const Mesh& mesh = *object.mesh;
 
-            /*context.SetConstantBuffer(kMeshConstants, object.meshCBV);
+            assert(mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_UINT);
+
+            if (m_CurrentPass == kZPass && !(mesh.psoFlags & PSOFlags::kAlphaTest))
+            {
+                ++m_CurrentDraw;
+                continue;
+            }
+
+            context.SetConstantBuffer(kMeshConstants, object.meshCBV);
             context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
             context.SetDescriptorTable(kMaterialSRVs, s_TextureHeap[mesh.srvTable]);
-            context.SetDescriptorTable(kMaterialSamplers, s_SamplerHeap[mesh.samplerTable]);*/
-
+            context.SetDescriptorTable(kMaterialSamplers, s_SamplerHeap[mesh.samplerTable]);
             //There arent any meshes with skeletons
-            //if (mesh.numJoints > 0)
-            //{
-            //    ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
-            //    context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
-            //}
-
-            context.SetPipelineState(sm_PSOs[key.psoIdx]);  //load shader?
+            if (mesh.numJoints > 0)
+            {
+                ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
+                context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
+            }
+            context.SetPipelineState(sm_MPSOs[key.psoIdx]);  //load shader?
 
 
             //TODO:
             /// MIGHT Need to pass in the vertex stride as it changes between visible and depth shaders
             /// MIGHT need to pass the GPU the offest from the first meshlet instead of giving the offset address
 
-            assert(mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_FLOAT);
-            context.GetCommandList()->SetGraphicsRoot32BitConstant(1, sizeof(uint16_t), 0); //Size of an index in bytes
             
+            //context.GetCommandList()->SetGraphicsRoot32BitConstant(1, sizeof(uint16_t), 0); //Size of an index in bytes
+
 
             if (m_CurrentPass == kZPass)
             {
@@ -1168,48 +1176,50 @@ void MeshSorter::RenderMeshes(
                     //stride += 16;
                 //context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbDepthOffset, mesh.vbDepthSize, stride });
                 //context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbDepthOffset);     //depth buffer stuff, pretty sure it is not needed if all vert data is treated as thesame size
-                context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbOffset);     //vertex buffer
+                
+                context.GetCommandList()->SetGraphicsRootShaderResourceView(7, object.bufferPtr + mesh.vbDepthOffset);     //depth vertex buffer
             }
             else
             {
                 //context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbOffset, mesh.vbSize, mesh.vbStride });
-                context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbOffset);     //vertex buffer
+                context.GetCommandList()->SetGraphicsRootShaderResourceView(7, object.bufferPtr + mesh.vbOffset);     //vertex buffer
             }
+       
 
-            //context.SetIndexBuffer({ object.bufferPtr + mesh.ibOffset, mesh.ibSize, (DXGI_FORMAT)mesh.ibFormat });
-
-            //for (uint32_t i = 0; i < mesh.numDraws; ++i)
-            //    context.DrawIndexed(mesh.draw[i].primCount, mesh.draw[i].startIndex, mesh.draw[i].baseVertex);
-
-
+            //X = MeshletBufferOffset, Y = UniqueIndexBufferOffeset, Z = PrimitiveBufferOffset, W = MeshletCount
             
-            context.GetCommandList()->SetGraphicsRootShaderResourceView(4, object.uIdxBufferPtr + meshletAssocMap[mesh.ibOffset].y);
-            context.GetCommandList()->SetGraphicsRootShaderResourceView(5, object.primBufferPtr + meshletAssocMap[mesh.ibOffset].z);
+            uint32_t indexSize = 2;// mesh.ibFormat == DXGI_FORMAT_R16_UINT ? 2 : 4;            
+
+            context.GetCommandList()->SetGraphicsRootShaderResourceView(8, object.meshletBufferPtr);
+            context.GetCommandList()->SetGraphicsRootShaderResourceView(9, object.uIdxBufferPtr);
+            context.GetCommandList()->SetGraphicsRootShaderResourceView(10, object.primBufferPtr);
+            context.GetCommandList()->SetGraphicsRoot32BitConstant(11, indexSize, 0);
+            context.GetCommandList()->SetGraphicsRoot32BitConstant(11, 0, 1);//meshBufferOffset
 
 
-            int MeshletCount = meshletAssocMap[mesh.ibOffset].w;
 
-            int reps = MeshletCount / 128;
-            for (int i = 0; i < reps; ++i) {
+            int MeshletCount = meshletAssocMap[mesh.ibOffset].w;//associations.w;
 
-                int offset = i * sizeof(DirectX::Meshlet);
-                context.GetCommandList()->SetGraphicsRootShaderResourceView(3, object.meshletBufferPtr + meshletAssocMap[mesh.ibOffset].x + offset);
+            int reps = ceil(MeshletCount / 128.0f);
 
-                if (i != reps - 1) {
-                    context.GetCommandList()->DispatchMesh(128, 1, 1);
-                }
-                else {
-                    context.GetCommandList()->DispatchMesh(MeshletCount % 128, 1, 1);
+            if (reps == 1) {
+                context.DispatchMesh(MeshletCount, 1, 1);
+            }
+            else {
+                for (int i = 0; i < reps; ++i) {
+                    //int offset = i * sizeof(DirectX::Meshlet);
+                    UINT offset = i * 128;
+                    context.GetCommandList()->SetGraphicsRoot32BitConstant(11, offset, 1);
+
+                    if (i != reps - 1) {
+                        context.DispatchMesh(128, 1, 1);
+                    }
+                    else {
+                        context.DispatchMesh(MeshletCount % 128, 1, 1);
+                    }
                 }
             }
-
-            //for (auto& subset : mesh.MeshletSubsets)
-            //{
-            //    m_commandList->SetGraphicsRoot32BitConstant(1, subset.Offset, 1);
-            //    m_commandList->DispatchMesh(subset.Count, 1, 1);
-            //}
-
-
+            
             ++m_CurrentDraw;
         }
     }

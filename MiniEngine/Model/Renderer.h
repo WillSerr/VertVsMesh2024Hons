@@ -121,14 +121,15 @@ namespace Renderer
         void Sort();
 
         void RenderMeshes(DrawPass pass, GraphicsContext& context, GlobalConstants& globals);
+
         void RenderMeshes(
             DrawPass pass,
             GraphicsContext& context,
             GlobalConstants& globals,
-            D3D12_GPU_VIRTUAL_ADDRESS& meshlets,
-            D3D12_GPU_VIRTUAL_ADDRESS& uniqueVertexIB,
-            D3D12_GPU_VIRTUAL_ADDRESS& primitiveIndices,
-            std::map<uint32_t, XMFLOAT4>& meshletAssocMap);
+            D3D12_GPU_VIRTUAL_ADDRESS meshlets,
+            D3D12_GPU_VIRTUAL_ADDRESS uniqueVertexIB,
+            D3D12_GPU_VIRTUAL_ADDRESS primitiveIndices,
+            std::map<uint32_t, DirectX::XMUINT4>& meshletAssocMap);
 
     private:
 

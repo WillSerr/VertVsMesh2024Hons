@@ -54,7 +54,7 @@ struct VSOutput
 {
     float4 position : SV_POSITION;
 #ifdef ENABLE_ALPHATEST
-    float2 uv0 : TEXCOORD0;
+    float2 uv0 : TexCoord0;
 #endif
 };
 

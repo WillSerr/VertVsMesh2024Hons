@@ -140,6 +140,15 @@ D3D12_CPU_DESCRIPTOR_HANDLE GpuBuffer::CreateConstantBufferView(uint32_t Offset,
 
     D3D12_CPU_DESCRIPTOR_HANDLE hCBV = AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     g_Device->CreateConstantBufferView(&CBVDesc, hCBV);
+
+    //D3D12_SHADER_RESOURCE_VIEW_DESC shaderResourceViewDesc{};
+    //shaderResourceViewDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+    //shaderResourceViewDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    //shaderResourceViewDesc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+    //shaderResourceViewDesc.Buffer.NumElements = 1234 / 4; // The size of the buffer here seems to be specified in 4-byte elements, thus divide by 4
+
+    //D3D12_CPU_DESCRIPTOR_HANDLE hCBV = AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    //g_Device->CreateShaderResourceView(m_pResource.Get(), &shaderResourceViewDesc, hCBV);
     return hCBV;
 }
 
@@ -213,6 +222,8 @@ void StructuredBuffer::CreateDerivedViews(void)
     if (m_UAV.ptr == D3D12_GPU_VIRTUAL_ADDRESS_UNKNOWN)
         m_UAV = AllocateDescriptor(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     g_Device->CreateUnorderedAccessView(m_pResource.Get(), m_CounterBuffer.GetResource(), &UAVDesc, m_UAV);
+
+
 }
 
 void TypedBuffer::CreateDerivedViews(void)

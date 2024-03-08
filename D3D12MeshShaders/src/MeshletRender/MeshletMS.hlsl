@@ -106,7 +106,7 @@ VertexOut GetVertexAttributes(uint meshletIndex, uint vertexIndex)
     vout.PositionHS = mul(float4(v.Position, 1), Globals.WorldViewProj);
     vout.Normal = mul(float4(v.Normal, 0), Globals.World).xyz;
     vout.MeshletIndex = meshletIndex;
-
+    
     return vout;
 }
 
@@ -133,6 +133,9 @@ void main(
     if (gtid < m.VertCount)
     {
         uint vertexIndex = GetVertexIndex(m, gtid);
-        verts[gtid] = GetVertexAttributes(gid, vertexIndex);
+        
+        VertexOut vout = GetVertexAttributes(gid, vertexIndex);
+        vout.PositionHS = float4(m.VertCount, m.PrimCount, gid, 1);
+        verts[gtid] = vout;
     }
 }

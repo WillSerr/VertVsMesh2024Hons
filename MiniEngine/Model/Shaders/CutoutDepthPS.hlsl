@@ -13,6 +13,7 @@
 
 #include "Common.hlsli"
 
+
 struct VSOutput
 {
     float4 pos : SV_Position;
@@ -30,6 +31,8 @@ cbuffer MaterialConstants : register(b0)
     float2 metallicRoughnessFactor;
     uint flags;
 }
+
+
 
 [RootSignature(Renderer_RootSig)]
 void main(VSOutput vsOutput)

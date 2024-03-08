@@ -36,7 +36,7 @@ using namespace GameCore;
 using namespace Math;
 using namespace Graphics;
 
-#define LEGACY_RENDERER
+//#define LEGACY_RENDERER
 
 void ModelViewer::Startup( void )
 {

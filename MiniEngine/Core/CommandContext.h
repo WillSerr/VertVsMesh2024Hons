@@ -263,6 +263,7 @@ public:
     void DrawIndirect( GpuBuffer& ArgumentBuffer, uint64_t ArgumentBufferOffset = 0 );
     void ExecuteIndirect(CommandSignature& CommandSig, GpuBuffer& ArgumentBuffer, uint64_t ArgumentStartOffset = 0,
         uint32_t MaxCommands = 1, GpuBuffer* CommandCounterBuffer = nullptr, uint64_t CounterOffset = 0);
+    void DispatchMesh(UINT ThreadgroupCountX, UINT ThreadgroupCountY = 1, UINT ThreadgroupCountZ = 1);
 
 private:
 };
@@ -710,6 +711,13 @@ inline void GraphicsContext::ExecuteIndirect(CommandSignature& CommandSig,
     m_CommandList->ExecuteIndirect(CommandSig.GetSignature(), MaxCommands,
         ArgumentBuffer.GetResource(), ArgumentStartOffset,
         CommandCounterBuffer == nullptr ? nullptr : CommandCounterBuffer->GetResource(), CounterOffset);
+}
+
+inline void GraphicsContext::DispatchMesh(UINT ThreadgroupCountX, UINT ThreadgroupCountY, UINT ThreadgroupCountZ) {
+    FlushResourceBarriers();
+    m_DynamicViewDescriptorHeap.CommitGraphicsRootDescriptorTables(m_CommandList);
+    m_DynamicSamplerDescriptorHeap.CommitGraphicsRootDescriptorTables(m_CommandList);
+    m_CommandList->DispatchMesh(ThreadgroupCountX, ThreadgroupCountY, ThreadgroupCountZ);
 }
 
 inline void GraphicsContext::DrawIndirect(GpuBuffer& ArgumentBuffer, uint64_t ArgumentBufferOffset)

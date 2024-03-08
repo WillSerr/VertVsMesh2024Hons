@@ -200,7 +200,28 @@
       <Filter>Shaders</Filter>
     </FxCompile>
     <FxCompile Include="DefaultMS.hlsl">
-      <Filter>Shaders</Filter>
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DepthOnlyMS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="CutoutDepthMS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DepthOnlySkinMS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="CutoutDepthSkinMS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="SkyboxMS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DefaultNoUV1MS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="CutoutDepthMPS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
     </FxCompile>
   </ItemGroup>
 </Project>

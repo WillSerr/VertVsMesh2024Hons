@@ -274,13 +274,14 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     {
         const Mesh& mesh = *(const Mesh*)pMesh;
 
-        size_t numFaces = mesh.draw[0].primCount / 3;
+        size_t numFaces = mesh.draw[0].primCount / 3; //this seems wrong
         size_t numVerts = mesh.vbSize / mesh.vbStride;
 
 
         int MeshletCount = model->meshlets.size();  //makes sense at the end of the loop
 
-        model->MeshletAssocMap[mesh.ibOffset] = XMFLOAT4(model->meshlets.size(), model->uniqueVertexIB.size(), model->primitiveIndices.size(),0);
+        model->MeshletAssocMap[mesh.ibOffset] = DirectX::XMUINT4(model->meshlets.size() * sizeof(DirectX::Meshlet), model->uniqueVertexIB.size(),
+                                                                    model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle), 0);
 
         //DXGI_FORMAT form = (DXGI_FORMAT)mesh.ibFormat;
         //uint32_t DepthSize = mesh.vbDepthSize;
@@ -314,7 +315,11 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         //uint16_t ind32[SAMPLESIZE];
         //uint16_t highestIndex = 0;
 
+        //size_t numIndices = mesh.ibSize / (sizeof(uint16_t));
         size_t numIndices = mesh.draw[0].primCount;// mesh.ibSize / (sizeof(uint16_t));
+
+        assert(numIndices == mesh.ibSize / (sizeof(uint16_t)));
+
         auto indices = std::make_unique<uint16_t[]>(numIndices);
         for (size_t j = 0; j < numIndices; ++j) {
             uint16_t indj;
@@ -338,7 +343,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         //    HighestIndex[i] = highestIndex;
         //}
 
-        //XMFLOAT3 pos[SAMPLESIZE];
+        XMFLOAT3 pos[SAMPLESIZE]{XMFLOAT3(0,0,0)};
         //uint16_t vCount = 0;
 
         auto positions = std::make_unique<XMFLOAT3[]>(numVerts);
@@ -347,9 +352,9 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
             memcpy(&posj, (rawByteBuffer.data() + mesh.vbOffset + (mesh.vbStride * j)), (sizeof(XMFLOAT3)));            
             positions[j] = posj;
 
-            //if (j < SAMPLESIZE) {
-            //    pos[j] = posj;
-            //}
+            if (j < SAMPLESIZE) {
+                pos[j] = posj;
+            }
 
             //++vCount;
         }
@@ -374,6 +379,11 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 
         model->MeshletAssocMap[mesh.ibOffset].w = MeshletCount;
 
+        //auto align offset bytes to a multiple of 4
+        if (model->uniqueVertexIB.size() % 4 != 0) {
+            model->uniqueVertexIB.resize(model->uniqueVertexIB.size() + 4 - (model->uniqueVertexIB.size() % 4));
+        }
+
         if (RES != S_OK)
         {
             bool oops = true;
@@ -382,10 +392,13 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         else{
         successfullRuns++;
         }
-            
+
 
         pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
     }
+
+    rawByteBuffer.clear();
+    rawByteBuffer.shrink_to_fit();
 
     {
         UploadBuffer MeshletsUpload;
@@ -393,6 +406,8 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         memcpy(MeshletsUpload.Map(), model->meshlets.data(), model->meshlets.size() * sizeof(DirectX::Meshlet));
         MeshletsUpload.Unmap();
         model->m_MeshletBuffer.Create(L"Meshlet Data Buffer", model->meshlets.size(), sizeof(DirectX::Meshlet), MeshletsUpload);
+        model->meshlets.clear();
+        model->meshlets.shrink_to_fit();
     }   
 
 
@@ -401,7 +416,9 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         uniqueVertexUpload.Create(L"Unique Vertex Upload", model->uniqueVertexIB.size() * sizeof(uint8_t));
         memcpy(uniqueVertexUpload.Map(), model->uniqueVertexIB.data(), model->uniqueVertexIB.size() * sizeof(uint8_t));
         uniqueVertexUpload.Unmap();
-        model->m_uniqueVertexIB.Create(L"Unique Vertex Data Buffer", model->uniqueVertexIB.size() / 2, sizeof(uint16_t), uniqueVertexUpload);
+        model->m_uniqueVertexIB.Create(L"Unique Vertex Data Buffer", model->uniqueVertexIB.size() / 2, sizeof(uint16_t), uniqueVertexUpload); //indices are packed into 16bits
+        model->uniqueVertexIB.clear();
+        model->uniqueVertexIB.shrink_to_fit();
     }
 
 
@@ -411,7 +428,13 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
         memcpy(PrimitivesUpload.Map(), model->primitiveIndices.data(), model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
         PrimitivesUpload.Unmap();
         model->m_primitiveIndices.Create(L"Primitive Indices Data Buffer", model->primitiveIndices.size(), sizeof(DirectX::MeshletTriangle), PrimitivesUpload);
+        model->primitiveIndices.clear();
+        model->primitiveIndices.shrink_to_fit();
     }
+
+    
+
+
 
 
 	if (header.numMaterials > 0)
@@ -443,7 +466,8 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     std::vector<uint8_t> textureOptions(header.numTextures);
     inFile.read((char*)textureOptions.data(), header.numTextures * sizeof(uint8_t));
 
-    LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
+    //LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
+    LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath, true);
 
     model->m_BoundingSphere = Math::BoundingSphere(*(XMFLOAT4*)header.boundingSphere);
     model->m_BoundingBox = AxisAlignedBox(Vector3(*(XMFLOAT3*)header.minPos), Vector3(*(XMFLOAT3*)header.maxPos));

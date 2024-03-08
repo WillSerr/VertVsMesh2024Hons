@@ -34,7 +34,7 @@ void Model::Render(
     MeshSorter& sorter,
     const GpuBuffer& meshConstants,
     const ScaleAndTranslation sphereTransforms[],
-    const Joint* skeleton, bool useMeshlets) const
+    const Joint* skeleton) const
 {
     // Pointer to current mesh
     const uint8_t* pMesh = m_MeshData.get();
@@ -53,30 +53,56 @@ void Model::Render(
 
         if (frustum.IntersectSphere(sphereVS))
         {
-            if (!useMeshlets) {
-                float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
-                sorter.AddMesh(mesh, distance,
-                    meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
-                    m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
-                    m_DataBuffer.GetGpuVirtualAddress(), skeleton);
-            }
-            else {
-                float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
-                sorter.AddMesh(mesh, distance,
-                    meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
-                    m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
-                    m_DataBuffer.GetGpuVirtualAddress(),
-                    m_MeshletBuffer.GetGpuVirtualAddress(),
-                    m_uniqueVertexIB.GetGpuVirtualAddress(),
-                    m_primitiveIndices.GetGpuVirtualAddress(),
-                    skeleton);
-            }
+            float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
+            sorter.AddMesh(mesh, distance,
+                meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
+                m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
+                m_DataBuffer.GetGpuVirtualAddress(), skeleton);
+
         }
 
         pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
     }
 }
 
+void Model::Render(
+    MeshSorter& sorter,
+    const GpuBuffer& meshConstants,
+    const ScaleAndTranslation sphereTransforms[],
+    const Joint* skeleton, 
+    std::map<uint32_t, DirectX::XMUINT4>& meshletAssocMap) const
+{
+    // Pointer to current mesh
+    const uint8_t* pMesh = m_MeshData.get();
+
+    const Frustum& frustum = sorter.GetViewFrustum();
+    const AffineTransform& viewMat = (const AffineTransform&)sorter.GetViewMatrix();
+
+    for (uint32_t i = 0; i < m_NumMeshes; ++i)
+    {
+        const Mesh& mesh = *(const Mesh*)pMesh;
+
+        const ScaleAndTranslation& sphereXform = sphereTransforms[mesh.meshCBV];
+        Math::BoundingSphere sphereLS((const XMFLOAT4*)mesh.bounds);
+        Math::BoundingSphere sphereWS = sphereXform * sphereLS;
+        Math::BoundingSphere sphereVS = Math::BoundingSphere(viewMat * sphereWS.GetCenter(), sphereWS.GetRadius());
+
+        if (frustum.IntersectSphere(sphereVS))
+        {
+            float distance = -sphereVS.GetCenter().GetZ() - sphereVS.GetRadius();
+            sorter.AddMesh(mesh, distance,
+                meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
+                m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
+                m_DataBuffer.GetGpuVirtualAddress(),
+                m_MeshletBuffer.GetGpuVirtualAddress() + meshletAssocMap[mesh.ibOffset].x,
+                m_uniqueVertexIB.GetGpuVirtualAddress(),// + meshletAssocMap[mesh.ibOffset].y,
+                m_primitiveIndices.GetGpuVirtualAddress(),// + meshletAssocMap[mesh.ibOffset].z,
+                skeleton);
+        }
+
+        pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
+    }
+}
 
 void ModelInstance::Render(MeshSorter& sorter) const
 {
@@ -85,6 +111,16 @@ void ModelInstance::Render(MeshSorter& sorter) const
         //const Frustum& frustum = sorter.GetWorldFrustum();
         m_Model->Render(sorter, m_MeshConstantsGPU, (const ScaleAndTranslation*)m_BoundingSphereTransforms.get(),
             m_Skeleton.get());
+    }
+}
+
+void ModelInstance::MeshletRender(MeshSorter& sorter) const
+{
+    if (m_Model != nullptr)
+    {
+        //const Frustum& frustum = sorter.GetWorldFrustum();
+        m_Model->Render(sorter, m_MeshConstantsGPU, (const ScaleAndTranslation*)m_BoundingSphereTransforms.get(),
+            m_Skeleton.get(), GetMeshletAssocMap());
     }
 }
 

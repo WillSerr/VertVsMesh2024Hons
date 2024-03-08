@@ -111,7 +111,14 @@ public:
     void Render(Renderer::MeshSorter& sorter,
         const GpuBuffer& meshConstants,
         const Math::ScaleAndTranslation sphereTransforms[],
-        const Joint* skeleton, bool useMeshlets = false) const;
+        const Joint* skeleton) const;
+
+    void Render(Renderer::MeshSorter& sorter,
+        const GpuBuffer& meshConstants,
+        const Math::ScaleAndTranslation sphereTransforms[],
+        const Joint* skeleton, 
+        std::map<uint32_t, DirectX::XMUINT4>& meshletAssocMap) const;
+    
 
     Math::BoundingSphere m_BoundingSphere; // Object-space bounding sphere
     Math::AxisAlignedBox m_BoundingBox;
@@ -148,7 +155,7 @@ public:
     ByteAddressBuffer m_uniqueVertexIB;
     ByteAddressBuffer m_primitiveIndices;
 
-    std::map<uint32_t, XMFLOAT4> MeshletAssocMap;
+    std::map<uint32_t, DirectX::XMUINT4> MeshletAssocMap;
 
     //struct Subset
     //{
@@ -186,6 +193,7 @@ public:
 
     void Update(GraphicsContext& gfxContext, float deltaTime);
     void Render(Renderer::MeshSorter& sorter) const;
+    void MeshletRender(Renderer::MeshSorter& sorter) const;
 
     void Resize(float newRadius);
     Math::Vector3 GetCenter() const;
@@ -200,6 +208,11 @@ public:
     void StopAnimation(uint32_t animIdx);
     void UpdateAnimations(float deltaTime);
     void LoopAllAnimations(void);
+
+    D3D12_GPU_VIRTUAL_ADDRESS GetMeshlets() { return m_Model->m_MeshletBuffer.GetGpuVirtualAddress(); };
+    D3D12_GPU_VIRTUAL_ADDRESS GetUniqueVertexIB() { return m_Model->m_uniqueVertexIB.GetGpuVirtualAddress(); };
+    D3D12_GPU_VIRTUAL_ADDRESS GetPrimitiveIndices() { return m_Model->m_primitiveIndices.GetGpuVirtualAddress(); };
+    std::map<uint32_t, DirectX::XMUINT4> GetMeshletAssocMap() const { return m_Model->MeshletAssocMap; };
 
 private:
     std::shared_ptr<const Model> m_Model;

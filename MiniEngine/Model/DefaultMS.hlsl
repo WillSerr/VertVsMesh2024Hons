@@ -21,21 +21,18 @@ struct Vertex
 {
     float3 Position;
     float3 Normal;
+#ifndef NO_TANGENT_FRAME
+    float4 tangent : TANGENT;
+#endif
+    float2 uv0 : TEXCOORD0;
+#ifndef NO_SECOND_UV
+    float2 uv1 : TEXCOORD1;
+#endif
+#ifdef ENABLE_SKINNING
+    uint4 jointIndices : BLENDINDICES;
+    float4 jointWeights : BLENDWEIGHT;
+#endif
 };
-
-struct Meshlet
-{
-    uint VertCount;
-    uint VertOffset;
-    uint PrimCount;
-    uint PrimOffset;
-};
-
-//struct MeshInfo
-//{
-//    uint IndexBytes;
-//    uint MeshletOffset;
-//};
 
 struct VSOutput
 {
@@ -58,60 +55,57 @@ ConstantBuffer<GlobalConstants> Globals: register(b1);
 
 StructuredBuffer<Vertex> Vertices : register(t21);
 StructuredBuffer<Meshlet> Meshlets : register(t22);
-ByteAddressBuffer UniqueVertexIndices : register(t23);
-StructuredBuffer<uint> PrimitiveIndices : register(t24);
 
-/////
-// Data Loaders
-
-uint3 UnpackPrimitive(uint primitive)
-{
-    // Unpacks a 10 bits per index triangle from a 32-bit uint.
-    return uint3(primitive & 0x3FF, (primitive >> 10) & 0x3FF, (primitive >> 20) & 0x3FF);
-}
-
-uint3 GetPrimitive(Meshlet m, uint index)
-{
-    return UnpackPrimitive(PrimitiveIndices[m.PrimOffset + index]);
-}
-
-uint GetVertexIndex(Meshlet m, uint localIndex)
-{
-    localIndex = m.VertOffset + localIndex;
-
-    //INDICES ARE 16-BIT
-    //if (MeshInfo.IndexBytes == 4) // 32-bit Vertex Indices
-    //{
-    //    return UniqueVertexIndices.Load(localIndex * 4);
-    //}
-    //else // 16-bit Vertex Indices
-    //{
-        // Byte address must be 4-byte aligned.
-        uint wordOffset = (localIndex & 0x1);
-        uint byteOffset = (localIndex / 2) * 4;
-
-        // Grab the pair of 16-bit indices, shift & mask off proper 16-bits.
-        uint indexPair = UniqueVertexIndices.Load(byteOffset);
-        uint index = (indexPair >> (wordOffset * 16)) & 0xffff;
-
-        return index;
-    //}
-}
 
 VSOutput GetVertexAttributes(uint meshletIndex, uint vertexIndex)
 {
     Vertex v = Vertices[vertexIndex];
+    VSOutput vsOutput;
 
     float4 position = float4(v.Position, 1.0);
     float3 normal = v.Normal * 2 - 1;
-    
-    VSOutput vout;
-    vout.worldPos = mul(Constants.WorldMatrix, position).xyz;
-    vout.position = mul(Globals.ViewProjMatrix, float4(vout.worldPos, 1.0));
-    vout.sunShadowCoord = mul(Globals.SunShadowMatrix, float4(vout.worldPos, 1.0)).xyz;
-    vout.normal = mul(Constants.WorldIT, normal);
+#ifndef NO_TANGENT_FRAME
+    float4 tangent = v.tangent * 2 - 1;
+#endif
 
-    return vout;
+#ifdef ENABLE_SKINNING
+    // I don't like this hack.  The weights should be normalized already, but something is fishy.
+    float4 weights = v.jointWeights / dot(v.jointWeights, 1);
+
+    float4x4 skinPosMat =
+        Joints[v.jointIndices.x].PosMatrix * weights.x +
+        Joints[v.jointIndices.y].PosMatrix * weights.y +
+        Joints[v.jointIndices.z].PosMatrix * weights.z +
+        Joints[v.jointIndices.w].PosMatrix * weights.w;
+
+    position = mul(skinPosMat, position);
+
+    float4x3 skinNrmMat =
+        Joints[v.jointIndices.x].NrmMatrix * weights.x +
+        Joints[v.jointIndices.y].NrmMatrix * weights.y +
+        Joints[v.jointIndices.z].NrmMatrix * weights.z +
+        Joints[v.jointIndices.w].NrmMatrix * weights.w;
+
+    normal = mul(skinNrmMat, normal).xyz;
+#ifndef NO_TANGENT_FRAME
+    tangent.xyz = mul(skinNrmMat, tangent.xyz).xyz;
+#endif
+
+#endif
+
+    vsOutput.worldPos = mul(Constants.WorldMatrix, position).xyz;
+    vsOutput.position = mul(Globals.ViewProjMatrix, float4(vsOutput.worldPos, 1.0));
+    vsOutput.sunShadowCoord = mul(Globals.SunShadowMatrix, float4(vsOutput.worldPos, 1.0)).xyz;
+    vsOutput.normal = mul(Constants.WorldIT, normal);
+#ifndef NO_TANGENT_FRAME
+    vsOutput.tangent = float4(mul(Constants.WorldIT, tangent.xyz), tangent.w);
+#endif
+    vsOutput.uv0 = v.uv0;
+#ifndef NO_SECOND_UV
+    vsOutput.uv1 = v.uv1;
+#endif
+
+    return vsOutput;
 }
 
 
@@ -125,7 +119,7 @@ void main(
     out vertices VSOutput verts[64]
 )
 {
-    Meshlet m = Meshlets[gid]; //MeshInfo.MeshletOffset + gid]; meshlet is passed at the correct position
+    Meshlet m = Meshlets[MeshInfo.MeshletOffset + gid]; //MeshInfo.MeshletOffset + gid]; meshlet is passed at the correct position
 
     SetMeshOutputCounts(m.VertCount, m.PrimCount);
 
