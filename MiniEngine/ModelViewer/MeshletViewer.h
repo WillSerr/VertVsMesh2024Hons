@@ -1,5 +1,7 @@
 #pragma once
 
+#define IS_RENDERING_MESHLETS
+
 #include "GameCore.h"
 #include "CameraController.h"
 #include "BufferManager.h"

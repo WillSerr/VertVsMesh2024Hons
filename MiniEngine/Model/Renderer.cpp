@@ -44,8 +44,10 @@
 
 #include "CompiledShaders/DepthOnlyMS.h"
 #include "CompiledShaders/DepthOnlySkinMS.h"
+#include "CompiledShaders/DefaultMPS.h"
 #include "CompiledShaders/CutoutDepthMS.h"
 #include "CompiledShaders/CutoutDepthSkinMS.h"
+#include "CompiledShaders/DefaultNoUV1MPS.h"
 #include "CompiledShaders/CutoutDepthMPS.h"
 #include "CompiledShaders/DefaultMS.h"
 #include "CompiledShaders/SkyboxMS.h"
@@ -315,7 +317,7 @@ void Renderer::Initialize(void)
         m_DefaultMeshPSO.SetPrimitiveTopologyType(D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
         m_DefaultMeshPSO.SetRenderTargetFormats(1, &ColorFormat, DepthFormat);
         m_DefaultMeshPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
-        m_DefaultMeshPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+        m_DefaultMeshPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultMPS));
 
         // Skybox MPSO
 
@@ -591,13 +593,13 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
             {
                 //ColorPSO.SetVertexShader(g_pDefaultSkinVS, sizeof(g_pDefaultSkinVS));
                 ASSERT(false, "no shader");
-                ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+                ColorPSO.SetPixelShader(g_pDefaultMPS, sizeof(g_pDefaultMPS));
             }
             else
             {
                 //ColorPSO.SetVertexShader(g_pDefaultNoUV1SkinVS, sizeof(g_pDefaultNoUV1SkinVS));
                 ASSERT(false, "no shader");
-                ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
+                ColorPSO.SetPixelShader(g_pDefaultNoUV1MPS, sizeof(g_pDefaultNoUV1MPS));
             }
         }
         else
@@ -623,12 +625,12 @@ uint8_t Renderer::GetMPSO(uint16_t psoFlags)
             if (psoFlags & kHasUV1)
             {
                 ColorPSO.SetMeshShader(g_pDefaultMS, sizeof(g_pDefaultMS));
-                ColorPSO.SetPixelShader(g_pDefaultPS, sizeof(g_pDefaultPS));
+                ColorPSO.SetPixelShader(g_pDefaultMPS, sizeof(g_pDefaultMPS));
             }
             else
             {
                 ColorPSO.SetMeshShader(g_pDefaultNoUV1MS, sizeof(g_pDefaultNoUV1MS));
-                ColorPSO.SetPixelShader(g_pDefaultNoUV1PS, sizeof(g_pDefaultNoUV1PS));
+                ColorPSO.SetPixelShader(g_pDefaultNoUV1MPS, sizeof(g_pDefaultNoUV1MPS));
             }
         }
         else
@@ -848,6 +850,10 @@ void MeshSorter::AddMesh(const Mesh& mesh, float distance,
     object.meshletBufferPtr = meshletBufferPtr;
     object.uIdxBufferPtr = uniqueIndexBufferPtr;
     object.primBufferPtr = primitiveBufferPtr;
+
+    if (key.psoIdx > sm_MPSOs.size()) {
+        int oops = true;
+    }
 
     m_SortObjects.push_back(object);
 }
@@ -1130,8 +1136,7 @@ void MeshSorter::RenderMeshes(
         context.SetViewportAndScissor(m_Viewport, m_Scissor);
         context.FlushResourceBarriers();
 
-        const uint32_t lastDraw = m_CurrentDraw + passCount;// Min(passCount, 17);
-        //int SuccessfullDraws = 0;
+        const uint32_t lastDraw = m_CurrentDraw + passCount;
         while (m_CurrentDraw < lastDraw)
         {
             SortKey key;
@@ -1141,11 +1146,6 @@ void MeshSorter::RenderMeshes(
 
             assert(mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_UINT);
 
-            if (m_CurrentPass == kZPass && !(mesh.psoFlags & PSOFlags::kAlphaTest))
-            {
-                ++m_CurrentDraw;
-                continue;
-            }
 
             context.SetConstantBuffer(kMeshConstants, object.meshCBV);
             context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
@@ -1157,31 +1157,17 @@ void MeshSorter::RenderMeshes(
                 ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
                 context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
             }
-            context.SetPipelineState(sm_MPSOs[key.psoIdx]);  //load shader?
-
-
-            //TODO:
-            /// MIGHT Need to pass in the vertex stride as it changes between visible and depth shaders
-            /// MIGHT need to pass the GPU the offest from the first meshlet instead of giving the offset address
-
+            context.SetPipelineState(sm_MPSOs[key.psoIdx]);
             
             //context.GetCommandList()->SetGraphicsRoot32BitConstant(1, sizeof(uint16_t), 0); //Size of an index in bytes
 
 
             if (m_CurrentPass == kZPass)
             {
-                //bool alphaTest = (mesh.psoFlags & PSOFlags::kAlphaTest) == PSOFlags::kAlphaTest;
-                //uint32_t stride = alphaTest ? 16u : 12u;
-                //if (mesh.numJoints > 0)
-                    //stride += 16;
-                //context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbDepthOffset, mesh.vbDepthSize, stride });
-                //context.GetCommandList()->SetGraphicsRootShaderResourceView(2, object.bufferPtr + mesh.vbDepthOffset);     //depth buffer stuff, pretty sure it is not needed if all vert data is treated as thesame size
-                
                 context.GetCommandList()->SetGraphicsRootShaderResourceView(7, object.bufferPtr + mesh.vbDepthOffset);     //depth vertex buffer
             }
             else
             {
-                //context.SetVertexBuffer(0, { object.bufferPtr + mesh.vbOffset, mesh.vbSize, mesh.vbStride });
                 context.GetCommandList()->SetGraphicsRootShaderResourceView(7, object.bufferPtr + mesh.vbOffset);     //vertex buffer
             }
        
@@ -1200,26 +1186,32 @@ void MeshSorter::RenderMeshes(
 
             int MeshletCount = meshletAssocMap[mesh.ibOffset].w;//associations.w;
 
-            int reps = ceil(MeshletCount / 128.0f);
+            //int maxMeshletsPerDispatch = 10;
+            //int reps = ceil(MeshletCount / float(maxMeshletsPerDispatch));
 
-            if (reps == 1) {
+            //if (reps == 1) {            
                 context.DispatchMesh(MeshletCount, 1, 1);
-            }
-            else {
-                for (int i = 0; i < reps; ++i) {
-                    //int offset = i * sizeof(DirectX::Meshlet);
-                    UINT offset = i * 128;
-                    context.GetCommandList()->SetGraphicsRoot32BitConstant(11, offset, 1);
+            //
+            //}
+            //else {
+            //    for (int i = 0; i < reps; ++i) {
+            //        //int offset = i * sizeof(DirectX::Meshlet);
+            //        UINT offset = i * maxMeshletsPerDispatch;
+            //        context.GetCommandList()->SetGraphicsRoot32BitConstant(11, offset, 1);
 
-                    if (i != reps - 1) {
-                        context.DispatchMesh(128, 1, 1);
-                    }
-                    else {
-                        context.DispatchMesh(MeshletCount % 128, 1, 1);
-                    }
-                }
-            }
-            
+            //        if (i != reps - 1) {
+            //            context.DispatchMesh(maxMeshletsPerDispatch, 1, 1);
+            //        }
+            //        else {
+            //            if (MeshletCount % maxMeshletsPerDispatch == 0) {
+            //                context.DispatchMesh(maxMeshletsPerDispatch, 1, 1);
+            //            }
+            //            else{
+            //                context.DispatchMesh(MeshletCount % maxMeshletsPerDispatch, 1, 1);
+            //            }
+            //        }
+            //    }
+            //}
             ++m_CurrentDraw;
         }
     }

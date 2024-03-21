@@ -20,13 +20,13 @@ struct GlobalConstants
 struct Vertex
 {
     float3 Position;
-    float3 Normal;
+    uint Normal;
 #ifndef NO_TANGENT_FRAME
-    float4 tangent : TANGENT;
+    uint tangent : TANGENT;
 #endif
-    float2 uv0 : TEXCOORD0;
+    uint uv0 : TEXCOORD0;
 #ifndef NO_SECOND_UV
-    float2 uv1 : TEXCOORD1;
+    uint uv1 : TEXCOORD1;
 #endif
 #ifdef ENABLE_SKINNING
     uint4 jointIndices : BLENDINDICES;
@@ -56,16 +56,61 @@ ConstantBuffer<GlobalConstants> Globals: register(b1);
 StructuredBuffer<Vertex> Vertices : register(t21);
 StructuredBuffer<Meshlet> Meshlets : register(t22);
 
+float f10tof32(uint float10)
+{    
+    uint exponent = (float10 & 0x3E0) << 16;
+    uint mantissa = float10 & 0x1F;
+    uint value = exponent | 30000000 | mantissa;
+    
+    return float(value);
+}
+
+float3 ExtractNormal(uint r10g10b10a2)
+{
+    float3 values;
+    values.x = f10tof32(r10g10b10a2);
+    values.y = f10tof32((r10g10b10a2 >> 10));
+    values.z = f10tof32((r10g10b10a2 >> 20));
+    
+    return normalize(values * 2 - 1);
+
+}
+
+float4 ExtractTangent(uint r10g10b10a2)
+{
+    float4 values;
+    values.x = f10tof32(r10g10b10a2);
+    values.y = f10tof32((r10g10b10a2 >> 10));
+    values.z = f10tof32((r10g10b10a2 >> 20));
+    values.w = r10g10b10a2 >> 31; //last bit is binary
+    
+    return values * 2 - 1;
+
+}
+
+float2 ReadUVs(uint packedUV)
+{
+    float2 texcoord = float2(1, 1);
+    uint floatValue = 0;
+    
+    texcoord.x = f16tof32(packedUV);
+    
+    texcoord.y = f16tof32(packedUV >> 16);
+    
+    return texcoord;
+}
 
 VSOutput GetVertexAttributes(uint meshletIndex, uint vertexIndex)
 {
     Vertex v = Vertices[vertexIndex];
     VSOutput vsOutput;
+    
+    
 
     float4 position = float4(v.Position, 1.0);
-    float3 normal = v.Normal * 2 - 1;
+    float3 normal = ExtractNormal(v.Normal);
 #ifndef NO_TANGENT_FRAME
-    float4 tangent = v.tangent * 2 - 1;
+    float4 tangent = ExtractTangent(v.tangent);
 #endif
 
 #ifdef ENABLE_SKINNING
@@ -100,9 +145,9 @@ VSOutput GetVertexAttributes(uint meshletIndex, uint vertexIndex)
 #ifndef NO_TANGENT_FRAME
     vsOutput.tangent = float4(mul(Constants.WorldIT, tangent.xyz), tangent.w);
 #endif
-    vsOutput.uv0 = v.uv0;
+    vsOutput.uv0 = ReadUVs(v.uv0);
 #ifndef NO_SECOND_UV
-    vsOutput.uv1 = v.uv1;
+    vsOutput.uv1 = ReadUVs(v.uv1);
 #endif
 
     return vsOutput;

@@ -26,6 +26,8 @@
 #include <fstream>
 #include <unordered_map>
 
+#define  IS_RENDERING_MESHLETS 1
+
 using namespace Renderer;
 using namespace Graphics;
 
@@ -372,7 +374,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
             positions.get(),
             numVerts,
             nullptr,
-            model->meshlets, model->uniqueVertexIB, model->primitiveIndices
+            model->meshlets, model->uniqueVertexIB, model->primitiveIndices, 64, 126
         );
 
         MeshletCount = model->meshlets.size() - MeshletCount;
@@ -466,8 +468,16 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     std::vector<uint8_t> textureOptions(header.numTextures);
     inFile.read((char*)textureOptions.data(), header.numTextures * sizeof(uint8_t));
 
-    //LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
+
+
+#ifdef IS_RENDERING_MESHLETS
     LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath, true);
+#else
+   LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
+#endif // IS_RENDERING_MESHLETS
+
+    
+    
 
     model->m_BoundingSphere = Math::BoundingSphere(*(XMFLOAT4*)header.boundingSphere);
     model->m_BoundingBox = AxisAlignedBox(Vector3(*(XMFLOAT3*)header.minPos), Vector3(*(XMFLOAT3*)header.maxPos));

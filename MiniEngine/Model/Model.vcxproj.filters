@@ -223,5 +223,11 @@
     <FxCompile Include="CutoutDepthMPS.hlsl">
       <Filter>Shaders\MeshShaders</Filter>
     </FxCompile>
+    <FxCompile Include="DefaultMPS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
+    <FxCompile Include="DefaultNoUV1MPS.hlsl">
+      <Filter>Shaders\MeshShaders</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

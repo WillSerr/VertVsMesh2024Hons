@@ -34,7 +34,7 @@
 
 #include "MeshletViewer.h"
 #include "IBLHelper.h"
-
+#include "pix3.h"
 
 using namespace GameCore;
 using namespace Math;
@@ -212,7 +212,6 @@ void MeshletViewer::RenderScene( void )
 		sorter.SetDepthStencilTarget(g_SceneDepthBuffer);
 		sorter.AddRenderTarget(g_SceneColorBuffer);
 
-        //m_ModelInst.Render(sorter);
         m_ModelInst.MeshletRender(sorter);
 
         sorter.Sort();
@@ -223,7 +222,7 @@ void MeshletViewer::RenderScene( void )
         }
 
         //Uses Compute shaders, not Vertex shaders
-        //SSAO::Render(gfxContext, m_Camera);
+        SSAO::Render(gfxContext, m_Camera);
 
 
         if (!SSAO::DebugDraw)
@@ -254,29 +253,33 @@ void MeshletViewer::RenderScene( void )
                 gfxContext.SetRenderTarget(g_SceneColorBuffer.GetRTV(), g_SceneDepthBuffer.GetDSV_DepthReadOnly());
                 gfxContext.SetViewportAndScissor(viewport, scissor);
 
-            //    sorter.RenderMeshes(MeshSorter::kOpaque, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(), m_ModelInst.GetPrimitiveIndices(), m_ModelInst.GetMeshletAssocMap());
+                sorter.RenderMeshes(MeshSorter::kOpaque, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(), m_ModelInst.GetPrimitiveIndices(), m_ModelInst.GetMeshletAssocMap());
             }
 
-    //        //Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
+           Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
 
-            //sorter.RenderMeshes(MeshSorter::kTransparent, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(), m_ModelInst.GetPrimitiveIndices(), m_ModelInst.GetMeshletAssocMap());
+           sorter.RenderMeshes(MeshSorter::kTransparent, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(), m_ModelInst.GetPrimitiveIndices(), m_ModelInst.GetMeshletAssocMap());
         }
     }
 
-    //// Some systems generate a per-pixel velocity buffer to better track dynamic and skinned meshes.  Everything
-    //// is static in our scene, so we generate velocity from camera motion and the depth buffer.  A velocity buffer
-    //// is necessary for all temporal effects (and motion blur).
-    ////MotionBlur::GenerateCameraVelocityBuffer(gfxContext, m_Camera, true);
+    // Some systems generate a per-pixel velocity buffer to better track dynamic and skinned meshes.  Everything
+    // is static in our scene, so we generate velocity from camera motion and the depth buffer.  A velocity buffer
+    // is necessary for all temporal effects (and motion blur).
+    MotionBlur::GenerateCameraVelocityBuffer(gfxContext, m_Camera, true);
 
-    //TemporalEffects::ResolveImage(gfxContext);
+    TemporalEffects::ResolveImage(gfxContext);
 
-    //ParticleEffectManager::Render(gfxContext, m_Camera, g_SceneColorBuffer, g_SceneDepthBuffer,  g_LinearDepth[FrameIndex]);
+    ParticleEffectManager::Render(gfxContext, m_Camera, g_SceneColorBuffer, g_SceneDepthBuffer,  g_LinearDepth[FrameIndex]);
 
-    ////Until I work out how to couple these two, it's "either-or".
-    //if (DepthOfField::Enable)
-    //    DepthOfField::Render(gfxContext, m_Camera.GetNearClip(), m_Camera.GetFarClip());
-    //else
-    //    MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
+    //Until I work out how to couple these two, it's "either-or".
+    if (DepthOfField::Enable)
+        DepthOfField::Render(gfxContext, m_Camera.GetNearClip(), m_Camera.GetFarClip());
+    else
+        MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
     
+    
+
     gfxContext.Finish();
+
+    
 }

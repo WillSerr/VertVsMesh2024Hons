@@ -62,6 +62,20 @@ namespace GameCore
     {
         //EngineProfiling::Update();
 
+        //PWSTR wstrFilename = L"C:/Users/William/Desktop/yr4Hons/VertVsMesh2024Hons/DebugLogs/logs.wpix";
+        //PIXCaptureParameters captureParams = {};
+
+        //captureParams.TimingCaptureParameters.CaptureGpuTiming = TRUE;
+        //captureParams.TimingCaptureParameters.CaptureCallstacks = TRUE;
+        //captureParams.TimingCaptureParameters.CaptureCpuSamples = TRUE;
+        //captureParams.TimingCaptureParameters.CpuSamplesPerSecond = 4000;
+
+        //captureParams.TimingCaptureParameters.CaptureStorage = PIXCaptureParameters::Memory;
+        //captureParams.TimingCaptureParameters.FileName = wstrFilename;
+        //captureParams.TimingCaptureParameters.MaximumToolingMemorySizeMb = 4096;
+
+        //PIXBeginCapture(PIX_CAPTURE_GPU, &captureParams);
+
         float DeltaTime = Graphics::GetFrameTime();
     
         GameInput::Update(DeltaTime);
@@ -86,6 +100,9 @@ namespace GameCore
         UiContext.Finish();*/
 
         Display::Present();
+
+
+        //PIXEndCapture(false);
 
         return !game.IsDone();
     }

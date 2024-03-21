@@ -32,9 +32,9 @@ StructuredBuffer<Joint> Joints : register(t20);
 
 struct Vertex
 {
-    float3 position : POSITION;    
+    float3 position;    
 #ifdef ENABLE_ALPHATEST
-    uint uv0 : TEXCOORD0;  //Due to there being no IA, the 2 16bit floats are passed as one 32bit value
+    uint uv0;  //Due to there being no IA, the 2 16bit floats are passed as one 32bit value
 #endif
 #ifdef ENABLE_SKINNING
     uint4 jointIndices : BLENDINDICES;
