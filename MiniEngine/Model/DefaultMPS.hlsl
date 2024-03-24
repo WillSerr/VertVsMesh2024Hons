@@ -291,5 +291,7 @@ float4 main(VSOutput vsOutput) : SV_Target0
 
     // TODO: Shade each light using Forward+ tiles
 
+    //return float4(normal, 1.f);
+    
     return float4(colorAccum, baseColor.a);
 }

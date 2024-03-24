@@ -56,32 +56,28 @@ ConstantBuffer<GlobalConstants> Globals: register(b1);
 StructuredBuffer<Vertex> Vertices : register(t21);
 StructuredBuffer<Meshlet> Meshlets : register(t22);
 
-float f10tof32(uint float10)
-{    
-    uint exponent = (float10 & 0x3E0) << 16;
-    uint mantissa = float10 & 0x1F;
-    uint value = exponent | 30000000 | mantissa;
-    
-    return float(value);
+float Unorm10tof32(uint float10)
+{        
+    return (float(float10 & 0x3FF) / float(0x3FF)); //starting n-bit value is converted to float,then divided by ((2^n)-1). from https://learn.microsoft.com/en-us/windows/win32/direct3d10/d3d10-graphics-programming-guide-resources-data-conversion
 }
 
 float3 ExtractNormal(uint r10g10b10a2)
 {
     float3 values;
-    values.x = f10tof32(r10g10b10a2);
-    values.y = f10tof32((r10g10b10a2 >> 10));
-    values.z = f10tof32((r10g10b10a2 >> 20));
+    values.x = Unorm10tof32(r10g10b10a2);
+    values.y = Unorm10tof32((r10g10b10a2 >> 10));
+    values.z = Unorm10tof32((r10g10b10a2 >> 20));
     
-    return normalize(values * 2 - 1);
+    return values * 2 - 1;
 
 }
 
 float4 ExtractTangent(uint r10g10b10a2)
 {
     float4 values;
-    values.x = f10tof32(r10g10b10a2);
-    values.y = f10tof32((r10g10b10a2 >> 10));
-    values.z = f10tof32((r10g10b10a2 >> 20));
+    values.x = Unorm10tof32(r10g10b10a2);
+    values.y = Unorm10tof32((r10g10b10a2 >> 10));
+    values.z = Unorm10tof32((r10g10b10a2 >> 20));
     values.w = r10g10b10a2 >> 31; //last bit is binary
     
     return values * 2 - 1;
