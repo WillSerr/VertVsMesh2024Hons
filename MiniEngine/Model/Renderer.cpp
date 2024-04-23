@@ -846,12 +846,8 @@ void MeshSorter::AddMesh(const Mesh& mesh, float distance,
         m_PassCounts[kOpaque]++;
     }
 
-    if (bufferPtr == 0) {
-        int i = 0;
-    }
-
     SortObject object = { &mesh, skeleton, meshCBV, materialCBV, bufferPtr };
-    object.meshletBufferPtr = meshletBufferPtr;//mesh.mbOffset
+    object.meshletBufferPtr = meshletBufferPtr + mesh.mbOffset;
     object.uIdxBufferPtr = uniqueIndexBufferPtr;
     object.primBufferPtr = primitiveBufferPtr;
     object.meshletCount = mesh.meshletCount;
@@ -1190,32 +1186,32 @@ void MeshSorter::RenderMeshes(
 
             int MeshletCount = object.meshletCount;//meshletAssocMap[mesh.ibOffset].w;//associations.w;
             
-/*            int maxMeshletsPerDispatch = 128;
+            int maxMeshletsPerDispatch = 128;
             int reps = ceil(MeshletCount / float(maxMeshletsPerDispatch));
 
-            if (reps == 1) {   */         
+            if (reps == 1) {            
                 context.DispatchMesh(MeshletCount, 1, 1);
             
-            //}
-            //else {
-            //    for (int i = 0; i < reps; ++i) {
-            //        //int offset = i * sizeof(DirectX::Meshlet);
-            //        UINT offset = i * maxMeshletsPerDispatch;
-            //        context.GetCommandList()->SetGraphicsRoot32BitConstant(11, offset, 1);
+            }
+            else {
+                for (int i = 0; i < reps; ++i) {
+                    //int offset = i * sizeof(DirectX::Meshlet);
+                    UINT offset = i * maxMeshletsPerDispatch;
+                    context.GetCommandList()->SetGraphicsRoot32BitConstant(11, offset, 1);
 
-            //        if (i != reps - 1) {
-            //            context.DispatchMesh(maxMeshletsPerDispatch, 1, 1);
-            //        }
-            //        else {
-            //            if (MeshletCount % maxMeshletsPerDispatch == 0) {
-            //                context.DispatchMesh(maxMeshletsPerDispatch, 1, 1);
-            //            }
-            //            else{
-            //                context.DispatchMesh(MeshletCount % maxMeshletsPerDispatch, 1, 1);
-            //            }
-            //        }
-            //    }
-            //}
+                    if (i != reps - 1) {
+                        context.DispatchMesh(maxMeshletsPerDispatch, 1, 1);
+                    }
+                    else {
+                        if (MeshletCount % maxMeshletsPerDispatch == 0) {
+                            context.DispatchMesh(maxMeshletsPerDispatch, 1, 1);
+                        }
+                        else{
+                            context.DispatchMesh(MeshletCount % maxMeshletsPerDispatch, 1, 1);
+                        }
+                    }
+                }
+            }
             ++m_CurrentDraw;
         }
     }

@@ -94,7 +94,7 @@ void Model::Render(
                 meshConstants.GetGpuVirtualAddress() + sizeof(MeshConstants) * mesh.meshCBV,
                 m_MaterialConstants.GetGpuVirtualAddress() + sizeof(MaterialConstants) * mesh.materialCBV,
                 m_DataBuffer.GetGpuVirtualAddress(),
-                m_MeshletBuffer.GetGpuVirtualAddress() + meshletAssocMap[mesh.ibOffset].x,
+                m_MeshletBuffer.GetGpuVirtualAddress(),
                 m_uniqueVertexIB.GetGpuVirtualAddress(),// + meshletAssocMap[mesh.ibOffset].y,
                 m_primitiveIndices.GetGpuVirtualAddress(),// + meshletAssocMap[mesh.ibOffset].z,
                 skeleton);
