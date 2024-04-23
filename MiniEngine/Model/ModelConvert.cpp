@@ -13,6 +13,10 @@
 //
 // This code depends on DirectXTex
 //
+// Extended to generate meshlet data and store it
+// by: William Serrels
+
+
 
 #include "ModelLoader.h"
 #include "Renderer.h"
@@ -441,6 +445,110 @@ void BuildSkins(ModelData& model, const glTF::Asset& asset)
     }
 }
 
+void BuildMeshlets(ModelData& model) 
+{
+
+    assert(model.m_GeometryData.size() > 0);
+
+    std::vector<DirectX::Meshlet> meshlets;
+    std::vector<byte> uniqueVertexIB;
+    std::vector<DirectX::MeshletTriangle> primitiveIndices;
+
+    //Generate Mesh renderer data
+    
+    for (uint32_t i = 0; i < model.m_Meshes.size(); ++i)
+    {
+        Mesh* mesh = model.m_Meshes[i];
+
+        size_t numFaces = mesh->draw[0].primCount / 3; //this seems wrong but works, maybe it's a mis-named indicesCount
+        size_t numVerts = mesh->vbSize / mesh->vbStride;
+
+
+        int MeshletCount = meshlets.size();  //makes sense at the end of the loop
+
+        mesh->mbOffset = MeshletCount * sizeof(DirectX::Meshlet);
+
+
+
+        //Isolate mesh's vertices
+        auto positions = std::make_unique<XMFLOAT3[]>(numVerts);
+        for (size_t j = 0; j < numVerts; ++j) {
+            XMFLOAT3 posj;
+            memcpy(&posj, (model.m_GeometryData.data() + mesh->vbOffset + (mesh->vbStride * j)), (sizeof(XMFLOAT3)));
+            positions[j] = posj;
+        }
+
+        HRESULT MeshletisationResult;
+        size_t numIndices = mesh->draw[0].primCount;
+
+        if (mesh->ibFormat == DXGI_FORMAT::DXGI_FORMAT_R32_UINT) //32-bit indices
+        {
+            assert(numIndices == mesh->ibSize / (sizeof(uint32_t)));
+
+            //Isolate mesh's indices
+            auto indices = std::make_unique<uint32_t[]>(numIndices);
+            for (size_t j = 0; j < numIndices; ++j) {
+                uint32_t indj;
+                memcpy(&indj, (model.m_GeometryData.data() + mesh->ibOffset + (sizeof(uint32_t) * j)), (sizeof(uint32_t)));
+                indices[j] = indj;
+            }
+
+
+            MeshletisationResult = ComputeMeshlets(
+                indices.get(), numFaces,
+                positions.get(),
+                numVerts,
+                nullptr,
+                meshlets, uniqueVertexIB, primitiveIndices, 64, 126
+            );
+        }
+        else if (mesh->ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_UINT) //16-bit indices
+        {
+            assert(numIndices == mesh->ibSize / (sizeof(uint16_t)));
+
+            //Isolate mesh's indices
+            auto indices = std::make_unique<uint16_t[]>(numIndices);
+            for (size_t j = 0; j < numIndices; ++j) {
+                uint16_t indj;
+                memcpy(&indj, (model.m_GeometryData.data() + mesh->ibOffset + (sizeof(uint16_t) * j)), (sizeof(uint16_t)));
+                indices[j] = indj;
+            }
+
+
+            MeshletisationResult = ComputeMeshlets(
+                indices.get(), numFaces,
+                positions.get(),
+                numVerts,
+                nullptr,
+                meshlets, uniqueVertexIB, primitiveIndices, 64, 126
+            );
+        }
+        else
+        {
+            assert(false);//Unknown indices format
+        }
+
+        mesh->meshletCount = meshlets.size() - MeshletCount;
+
+        //pad to align bytes to a multiple of 4
+        if (uniqueVertexIB.size() % 4 != 0) {
+            uniqueVertexIB.resize(uniqueVertexIB.size() + 4 - (uniqueVertexIB.size() % 4));
+        }
+
+        assert(MeshletisationResult == S_OK);
+    }
+
+
+    //Apply the new meshlet data to the model
+    model.m_MeshletData.resize(meshlets.size() * sizeof( DirectX::Meshlet ));
+    memcpy(model.m_MeshletData.data(), meshlets.data(), meshlets.size() * sizeof(DirectX::Meshlet));
+
+    model.m_UniqueIndexData.swap(uniqueVertexIB);
+
+    model.m_PrimitiveData.resize(primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
+    memcpy(model.m_PrimitiveData.data(), primitiveIndices.data(), primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
+}
+
 bool Renderer::BuildModel(ModelData& model, const glTF::Asset& asset, int sceneIdx)
 {
     BuildMaterials(model, asset);
@@ -461,6 +569,8 @@ bool Renderer::BuildModel(ModelData& model, const glTF::Asset& asset, int sceneI
 
     BuildAnimations(model, asset);
     BuildSkins(model, asset);
+
+    BuildMeshlets(model);
 
     return true;
 }
@@ -485,6 +595,11 @@ bool Renderer::SaveModel(const std::wstring& filePath, const ModelData& data)
     for (const std::string& str : data.m_TextureNames)
         header.stringTableSize += (uint32_t)str.size() + 1;
     header.geometrySize = (uint32_t)data.m_GeometryData.size();
+
+    header.meshletsSize = (uint32_t)data.m_MeshletData.size();
+    header.uniqueIdxSize = (uint32_t)data.m_UniqueIndexData.size();
+    header.primitiveSize = (uint32_t)data.m_PrimitiveData.size();
+
     header.keyFrameDataSize = (uint32_t)data.m_AnimationKeyFrameData.size();
     header.numAnimationCurves = (uint32_t)data.m_AnimationCurves.size();
     header.numAnimations = (uint32_t)data.m_Animations.size();
@@ -502,6 +617,11 @@ bool Renderer::SaveModel(const std::wstring& filePath, const ModelData& data)
 
     outFile.write((char*)&header, sizeof(FileHeader));
     outFile.write((char*)data.m_GeometryData.data(), header.geometrySize);
+
+    outFile.write((char*)data.m_MeshletData.data(), header.meshletsSize);
+    outFile.write((char*)data.m_UniqueIndexData.data(), header.uniqueIdxSize);
+    outFile.write((char*)data.m_PrimitiveData.data(), header.primitiveSize);
+
     outFile.write((char*)data.m_SceneGraph.data(), header.numNodes * sizeof(GraphNode));
     for (const Mesh* mesh : data.m_Meshes)
         outFile.write((char*)mesh, sizeof(Mesh) + (mesh->numDraws - 1) * sizeof(Mesh::Draw));

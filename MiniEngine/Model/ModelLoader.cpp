@@ -13,6 +13,9 @@
 //
 // This code depends on DirectXTex
 //
+// Expanded for use with meshlets 
+// shaders by: William Serrels
+
 
 #include "ModelLoader.h"
 #include "Renderer.h"
@@ -27,7 +30,7 @@
 #include <unordered_map>
 
 
-#define  IS_RENDERING_MESHLETS 1
+//#define  IS_RENDERING_MESHLETS 1
 
 using namespace Renderer;
 using namespace Graphics;
@@ -143,7 +146,7 @@ void LoadMaterials(Model& model,
     }
 }
 
-std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool forceRebuild)
+std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool forceRebuild, bool areUsingMeshletShaders)
 {
     const std::wstring miniFileName = Utility::RemoveExtension(filePath) + L".mini";
     const std::wstring fileName = Utility::RemoveBasePath(filePath);
@@ -236,7 +239,7 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     model->m_NumMeshes = header.numMeshes;
     model->m_MeshData.reset(new uint8_t[header.meshDataSize]);
 
-    std::vector<char> rawByteBuffer(header.geometrySize);
+    //std::vector<char> rawByteBuffer(header.geometrySize);
 
 	if (header.geometrySize > 0)
 	{
@@ -244,9 +247,9 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 		modelData.Create(L"Model Data Upload", header.geometrySize);
 
 
-		//inFile.read((char*)modelData.Map(), header.geometrySize);
-        inFile.read(rawByteBuffer.data(), header.geometrySize);  //keep hold of values for meshlet generating
-        memcpy(modelData.Map(), rawByteBuffer.data(), header.geometrySize);
+		inFile.read((char*)modelData.Map(), header.geometrySize);
+        //inFile.read(rawByteBuffer.data(), header.geometrySize);  //keep hold of values for meshlet generating
+        //memcpy(modelData.Map(), rawByteBuffer.data(), header.geometrySize);
 
 		modelData.Unmap();
 		model->m_DataBuffer.Create(L"Model Data", header.geometrySize, 1, modelData);
@@ -255,160 +258,119 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 
 	}
 
-    inFile.read((char*)model->m_SceneGraph.get(), header.numNodes * sizeof(GraphNode));
-    inFile.read((char*)model->m_MeshData.get(), header.meshDataSize);
-
-    //Generate Mesh renderer data
-#define SAMPLESIZE 100
-    const uint8_t* pMesh = model->m_MeshData.get();     // Pointer to current mesh
-    //model->uniqueVertexIB.resize(16);
-    int successfullRuns = 0;
-    //DXGI_FORMAT format[SAMPLESIZE]{ DXGI_FORMAT::DXGI_FORMAT_UNKNOWN };
-    //uint32_t DrawCount[SAMPLESIZE]{ 0 };   // Number of indices = 3 * number of triangles
-    //uint32_t primCount[SAMPLESIZE]{ 0 };   // Number of indices = 3 * number of triangles
-    //uint32_t startIndex[SAMPLESIZE]{ 0 };  // Offset to first index in index buffer 
-    //uint32_t baseVertex[SAMPLESIZE]{ 0 };  // Offset to first vertex in vertex buffer
-    //uint32_t DepthSizes[SAMPLESIZE]{ 0 };  // Offset to first vertex in vertex buffer
-    //uint32_t DepthOffsets[SAMPLESIZE]{ 0 };
-    //uint32_t VStrides[SAMPLESIZE]{ 0 };
-    //uint32_t HighestIndex[SAMPLESIZE]{ 0 };
-    //uint32_t TrueVertCount[SAMPLESIZE]{ 0 };
-    for (uint32_t i = 0; i < model->m_NumMeshes; ++i)
-    {
-        const Mesh& mesh = *(const Mesh*)pMesh;
-
-        size_t numFaces = mesh.draw[0].primCount / 3; //this seems wrong
-        size_t numVerts = mesh.vbSize / mesh.vbStride;
 
 
-        int MeshletCount = model->meshlets.size();  //makes sense at the end of the loop
+//#ifdef IS_RENDERING_MESHLETS
 
-        model->MeshletAssocMap[mesh.ibOffset] = DirectX::XMUINT4(model->meshlets.size() * sizeof(DirectX::Meshlet), model->uniqueVertexIB.size(),
-                                                                    model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle), 0);
+        ////Generate Mesh renderer data
+        //const uint8_t* pMesh = model->m_MeshData.get();     // Pointer to current mesh
 
-        //DXGI_FORMAT form = (DXGI_FORMAT)mesh.ibFormat;
-        //uint32_t DepthSize = mesh.vbDepthSize;
-        //uint32_t DepthOffset = mesh.vbDepthOffset;
-        //uint32_t VStride = mesh.vbStride;
-        //if (i < SAMPLESIZE) {
-        //    format[i] = form;
-        //    DepthSizes[i] = DepthSize;
-        //    DepthOffsets[i] = DepthOffset;
-        //    VStrides[i] = VStride;
-        //}
+        //for (uint32_t i = 0; i < model->m_NumMeshes; ++i)
+        //{
+        //    const Mesh& mesh = *(const Mesh*)pMesh;
 
-        //uint32_t draws = mesh.numDraws;
-        //if (mesh.numDraws > 0) {
-        //    
-        //    uint32_t prims = mesh.draw[0].primCount;   // Number of indices = 3 * number of triangles
-        //    uint32_t startInd = mesh.draw[0].startIndex;  // Offset to first index in index buffer 
-        //    uint32_t baseVert = mesh.draw[0].baseVertex;  // Offset to first vertex in vertex buffer
+        //    size_t numFaces = mesh.draw[0].primCount / 3; //this seems wrong but works, maybe it's a mis-named indicesCount
+        //    size_t numVerts = mesh.vbSize / mesh.vbStride;
 
-        //    if (i < SAMPLESIZE) {
-        //        DrawCount[i] = draws;
-        //        primCount[i] = prims;   // Number of indices = 3 * number of triangles
-        //        startIndex[i] = startInd;  // Offset to first index in index buffer 
-        //        baseVertex[i] = baseVert;  // Offset to first vertex in vertex buffer
+
+        //    int MeshletCount = model->meshlets.size();  //makes sense at the end of the loop
+
+        //    //This will be used too pass mesh specific meshlet data to the renderer
+        //    model->MeshletAssocMap[mesh.ibOffset] = DirectX::XMUINT4(model->meshlets.size() * sizeof(DirectX::Meshlet), model->uniqueVertexIB.size(),
+        //        model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle), 0);
+
+
+        //    //Isolate mesh's vertices
+        //    auto positions = std::make_unique<XMFLOAT3[]>(numVerts);
+        //    for (size_t j = 0; j < numVerts; ++j) {
+        //        XMFLOAT3 posj;
+        //        memcpy(&posj, (rawByteBuffer.data() + mesh.vbOffset + (mesh.vbStride * j)), (sizeof(XMFLOAT3)));
+        //        positions[j] = posj;
         //    }
+
+        //    HRESULT MeshletisationResult;
+        //    size_t numIndices = mesh.draw[0].primCount;
+
+        //    if (mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R32_UINT) //32-bit indices
+        //    {
+        //        assert(numIndices == mesh.ibSize / (sizeof(uint32_t)));
+
+        //        //Isolate mesh's indices
+        //        auto indices = std::make_unique<uint32_t[]>(numIndices);
+        //        for (size_t j = 0; j < numIndices; ++j) {
+        //            uint32_t indj;
+        //            memcpy(&indj, (rawByteBuffer.data() + mesh.ibOffset + (sizeof(uint32_t) * j)), (sizeof(uint32_t)));
+        //            indices[j] = indj;
+        //        }
+
+
+        //        MeshletisationResult = ComputeMeshlets(
+        //            indices.get(), numFaces,
+        //            positions.get(),
+        //            numVerts,
+        //            nullptr,
+        //            model->meshlets, model->uniqueVertexIB, model->primitiveIndices, 64, 126
+        //        );
+        //    }
+        //    else if (mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_UINT) //16-bit indices
+        //    {
+        //        assert(numIndices == mesh.ibSize / (sizeof(uint16_t)));
+
+        //        //Isolate mesh's indices
+        //        auto indices = std::make_unique<uint16_t[]>(numIndices);
+        //        for (size_t j = 0; j < numIndices; ++j) {
+        //            uint16_t indj;
+        //            memcpy(&indj, (rawByteBuffer.data() + mesh.ibOffset + (sizeof(uint16_t) * j)), (sizeof(uint16_t)));
+        //            indices[j] = indj;
+        //        }
+
+
+        //        MeshletisationResult = ComputeMeshlets(
+        //            indices.get(), numFaces,
+        //            positions.get(),
+        //            numVerts,
+        //            nullptr,
+        //            model->meshlets, model->uniqueVertexIB, model->primitiveIndices, 64, 126
+        //        );
+        //    }
+        //    else
+        //    {
+        //        assert(false);//Unknown indices format
+        //    }
+
+        //    MeshletCount = model->meshlets.size() - MeshletCount;
+
+        //    model->MeshletAssocMap[mesh.ibOffset].w = MeshletCount;
+
+        //    //pad to align bytes to a multiple of 4
+        //    if (model->uniqueVertexIB.size() % 4 != 0) {
+        //        model->uniqueVertexIB.resize(model->uniqueVertexIB.size() + 4 - (model->uniqueVertexIB.size() % 4));
+        //    }
+
+        //    assert(MeshletisationResult == S_OK);
+
+        //    pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
         //}
+//#endif
+    
 
-        
-
-        //uint16_t ind16[SAMPLESIZE];
-        //uint16_t ind32[SAMPLESIZE];
-        //uint16_t highestIndex = 0;
-
-        //size_t numIndices = mesh.ibSize / (sizeof(uint16_t));
-        size_t numIndices = mesh.draw[0].primCount;// mesh.ibSize / (sizeof(uint16_t));
-
-        assert(numIndices == mesh.ibSize / (sizeof(uint16_t)));
-
-        auto indices = std::make_unique<uint16_t[]>(numIndices);
-        for (size_t j = 0; j < numIndices; ++j) {
-            uint16_t indj;
-            memcpy(&indj, (rawByteBuffer.data() + mesh.ibOffset + (sizeof(uint16_t) * j)), (sizeof(uint16_t)));            
-            indices[j] = indj;
-
-            //if (highestIndex < indj)
-            //    highestIndex = indj;
-
-            //if (j < SAMPLESIZE) {
-            //    ind16[j] = indices[j];
-
-            //    uint16_t indj; 
-            //    memcpy(&indj, (rawByteBuffer.data() + mesh.ibOffset), (sizeof(uint16_t)));
-            //    ind32[j] = indj;
-            //}
-
-        }
-
-        //if (i < SAMPLESIZE) {
-        //    HighestIndex[i] = highestIndex;
-        //}
-
-        XMFLOAT3 pos[SAMPLESIZE]{XMFLOAT3(0,0,0)};
-        //uint16_t vCount = 0;
-
-        auto positions = std::make_unique<XMFLOAT3[]>(numVerts);
-        for (size_t j = 0; j < numVerts; ++j) {
-            XMFLOAT3 posj;
-            memcpy(&posj, (rawByteBuffer.data() + mesh.vbOffset + (mesh.vbStride * j)), (sizeof(XMFLOAT3)));            
-            positions[j] = posj;
-
-            if (j < SAMPLESIZE) {
-                pos[j] = posj;
-            }
-
-            //++vCount;
-        }
-
-        //if (i < SAMPLESIZE) {
-        //    TrueVertCount[i] = vCount;
-        //}
-
-
-
-
-
-        HRESULT RES = ComputeMeshlets(
-            indices.get(), numFaces,
-            positions.get(),
-            numVerts,
-            nullptr,
-            model->meshlets, model->uniqueVertexIB, model->primitiveIndices, 64, 126
-        );
-
-        MeshletCount = model->meshlets.size() - MeshletCount;
-
-        model->MeshletAssocMap[mesh.ibOffset].w = MeshletCount;
-
-        //auto align offset bytes to a multiple of 4
-        if (model->uniqueVertexIB.size() % 4 != 0) {
-            model->uniqueVertexIB.resize(model->uniqueVertexIB.size() + 4 - (model->uniqueVertexIB.size() % 4));
-        }
-
-        if (RES != S_OK)
-        {
-            bool oops = true;
-            // Error
-        }        
-        else{
-        successfullRuns++;
-        }
-
-
-        pMesh += sizeof(Mesh) + (mesh.numDraws - 1) * sizeof(Mesh::Draw);
-    }
-
-    rawByteBuffer.clear();
-    rawByteBuffer.shrink_to_fit();
-
+    //rawByteBuffer.clear();
+    //rawByteBuffer.shrink_to_fit();
+    
+//#ifdef IS_RENDERING_MESHLETS
+    if(header.meshletsSize > 0)
     {
+
         UploadBuffer MeshletsUpload;
-        MeshletsUpload.Create(L"Meshlet Data Upload", model->meshlets.size() * sizeof(DirectX::Meshlet));
-        memcpy(MeshletsUpload.Map(), model->meshlets.data(), model->meshlets.size() * sizeof(DirectX::Meshlet));
+        MeshletsUpload.Create(L"Meshlet Data Upload", header.meshletsSize);
+
+
+        inFile.read((char*)MeshletsUpload.Map(), header.meshletsSize);
+        
+        //memcpy(MeshletsUpload.Map(), model->meshlets.data(), header.meshletsSize);
+
         MeshletsUpload.Unmap();
-        model->m_MeshletBuffer.Create(L"Meshlet Data Buffer", model->meshlets.size(), sizeof(DirectX::Meshlet), MeshletsUpload);
+        model->m_MeshletBuffer.Create(L"Meshlet Data Buffer", header.meshletsSize / sizeof(DirectX::Meshlet), sizeof(DirectX::Meshlet), MeshletsUpload);
         model->meshlets.clear();
         model->meshlets.shrink_to_fit();
     }   
@@ -416,10 +378,13 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 
     {
         UploadBuffer uniqueVertexUpload;
-        uniqueVertexUpload.Create(L"Unique Vertex Upload", model->uniqueVertexIB.size() * sizeof(uint8_t));
-        memcpy(uniqueVertexUpload.Map(), model->uniqueVertexIB.data(), model->uniqueVertexIB.size() * sizeof(uint8_t));
+        uniqueVertexUpload.Create(L"Unique Vertex Upload", header.uniqueIdxSize);
+
+        inFile.read((char*)uniqueVertexUpload.Map(), header.uniqueIdxSize);
+        //memcpy(uniqueVertexUpload.Map(), model->uniqueVertexIB.data(), model->uniqueVertexIB.size() * sizeof(uint8_t));
+
         uniqueVertexUpload.Unmap();
-        model->m_uniqueVertexIB.Create(L"Unique Vertex Data Buffer", model->uniqueVertexIB.size() / 2, sizeof(uint16_t), uniqueVertexUpload); //indices are packed into 16bits
+        model->m_uniqueVertexIB.Create(L"Unique Vertex Data Buffer", header.uniqueIdxSize / 2, sizeof(uint16_t), uniqueVertexUpload); //indices are packed into 16bits
         model->uniqueVertexIB.clear();
         model->uniqueVertexIB.shrink_to_fit();
     }
@@ -427,17 +392,20 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
 
     {
         UploadBuffer PrimitivesUpload;
-        PrimitivesUpload.Create(L"Primitive Indices Upload", model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
-        memcpy(PrimitivesUpload.Map(), model->primitiveIndices.data(), model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
+        PrimitivesUpload.Create(L"Primitive Indices Upload", header.primitiveSize);
+
+        inFile.read((char*)PrimitivesUpload.Map(), header.primitiveSize);
+        //memcpy(PrimitivesUpload.Map(), model->primitiveIndices.data(), model->primitiveIndices.size() * sizeof(DirectX::MeshletTriangle));
         PrimitivesUpload.Unmap();
-        model->m_primitiveIndices.Create(L"Primitive Indices Data Buffer", model->primitiveIndices.size(), sizeof(DirectX::MeshletTriangle), PrimitivesUpload);
+        model->m_primitiveIndices.Create(L"Primitive Indices Data Buffer", header.primitiveSize / sizeof(DirectX::MeshletTriangle), sizeof(DirectX::MeshletTriangle), PrimitivesUpload);
         model->primitiveIndices.clear();
         model->primitiveIndices.shrink_to_fit();
     }
 
-    
+//#endif
 
-
+    inFile.read((char*)model->m_SceneGraph.get(), header.numNodes * sizeof(GraphNode));
+    inFile.read((char*)model->m_MeshData.get(), header.meshDataSize);
 
 
 	if (header.numMaterials > 0)
@@ -470,12 +438,13 @@ std::shared_ptr<Model> Renderer::LoadModel(const std::wstring& filePath, bool fo
     inFile.read((char*)textureOptions.data(), header.numTextures * sizeof(uint8_t));
 
 
+    if (areUsingMeshletShaders) {
+        LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath, true);
+    }
+    else {
+        LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
+    }
 
-#ifdef IS_RENDERING_MESHLETS
-    LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath, true);
-#else
-   LoadMaterials(*model, materialTextures, textureNames, textureOptions, basePath);
-#endif // IS_RENDERING_MESHLETS
 
     
     

@@ -846,10 +846,16 @@ void MeshSorter::AddMesh(const Mesh& mesh, float distance,
         m_PassCounts[kOpaque]++;
     }
 
+    if (bufferPtr == 0) {
+        int i = 0;
+    }
+
     SortObject object = { &mesh, skeleton, meshCBV, materialCBV, bufferPtr };
-    object.meshletBufferPtr = meshletBufferPtr;
+    object.meshletBufferPtr = meshletBufferPtr;//mesh.mbOffset
     object.uIdxBufferPtr = uniqueIndexBufferPtr;
     object.primBufferPtr = primitiveBufferPtr;
+    object.meshletCount = mesh.meshletCount;
+    
 
     if (key.psoIdx > sm_MPSOs.size()) {
         int oops = true;
@@ -1144,19 +1150,17 @@ void MeshSorter::RenderMeshes(
             const SortObject& object = m_SortObjects[key.objectIdx];
             const Mesh& mesh = *object.mesh;
 
-            assert(mesh.ibFormat == DXGI_FORMAT::DXGI_FORMAT_R16_UINT);
-
 
             context.SetConstantBuffer(kMeshConstants, object.meshCBV);
             context.SetConstantBuffer(kMaterialConstants, object.materialCBV);
             context.SetDescriptorTable(kMaterialSRVs, s_TextureHeap[mesh.srvTable]);
             context.SetDescriptorTable(kMaterialSamplers, s_SamplerHeap[mesh.samplerTable]);
             //There arent any meshes with skeletons
-            if (mesh.numJoints > 0)
-            {
-                ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
-                context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
-            }
+            //if (mesh.numJoints > 0)
+            //{
+            //    ASSERT(object.skeleton != nullptr, "Unspecified joint matrix array");
+            //    context.SetDynamicSRV(kSkinMatrices, sizeof(Joint) * mesh.numJoints, object.skeleton + mesh.startJoint);
+            //}
             context.SetPipelineState(sm_MPSOs[key.psoIdx]);
             
             //context.GetCommandList()->SetGraphicsRoot32BitConstant(1, sizeof(uint16_t), 0); //Size of an index in bytes
@@ -1174,7 +1178,7 @@ void MeshSorter::RenderMeshes(
 
             //X = MeshletBufferOffset, Y = UniqueIndexBufferOffeset, Z = PrimitiveBufferOffset, W = MeshletCount
             
-            uint32_t indexSize = 2;// mesh.ibFormat == DXGI_FORMAT_R16_UINT ? 2 : 4;            
+            uint32_t indexSize = mesh.ibFormat == DXGI_FORMAT_R16_UINT ? 2 : 4;            
 
             context.GetCommandList()->SetGraphicsRootShaderResourceView(8, object.meshletBufferPtr);
             context.GetCommandList()->SetGraphicsRootShaderResourceView(9, object.uIdxBufferPtr);
@@ -1184,14 +1188,14 @@ void MeshSorter::RenderMeshes(
 
 
 
-            int MeshletCount = meshletAssocMap[mesh.ibOffset].w;//associations.w;
+            int MeshletCount = object.meshletCount;//meshletAssocMap[mesh.ibOffset].w;//associations.w;
+            
+/*            int maxMeshletsPerDispatch = 128;
+            int reps = ceil(MeshletCount / float(maxMeshletsPerDispatch));
 
-            //int maxMeshletsPerDispatch = 10;
-            //int reps = ceil(MeshletCount / float(maxMeshletsPerDispatch));
-
-            //if (reps == 1) {            
+            if (reps == 1) {   */         
                 context.DispatchMesh(MeshletCount, 1, 1);
-            //
+            
             //}
             //else {
             //    for (int i = 0; i < reps; ++i) {

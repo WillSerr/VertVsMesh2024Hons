@@ -1,17 +1,3 @@
-//
-// Copyright (c) Microsoft. All rights reserved.
-// This code is licensed under the MIT License (MIT).
-// THIS CODE IS PROVIDED *AS IS* WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING ANY
-// IMPLIED WARRANTIES OF FITNESS FOR A PARTICULAR
-// PURPOSE, MERCHANTABILITY, OR NON-INFRINGEMENT.
-//
-// Developed by Minigraph
-//
-// Author:  James Stanard
-//
-
-
 #include "Camera.h"
 #include "CommandContext.h"
 #include "TemporalEffects.h"
@@ -67,7 +53,7 @@ void MeshletViewer::Startup( void )
 #ifdef LEGACY_RENDERER
         Sponza::Startup(m_Camera);
 #else
-        m_ModelInst = Renderer::LoadModel(L"Sponza/PBR/sponza2.gltf", forceRebuild);
+        m_ModelInst = Renderer::LoadModel(L"Sponza/PBR/sponza2.gltf", forceRebuild, true);
         m_ModelInst.Resize(100.0f * m_ModelInst.GetRadius());
         OrientedBox obb = m_ModelInst.GetBoundingBox();
         float modelRadius = Length(obb.GetDimensions()) * 0.5f;
@@ -77,7 +63,7 @@ void MeshletViewer::Startup( void )
     }
     else
     {
-        m_ModelInst = Renderer::LoadModel(gltfFileName, forceRebuild);
+        m_ModelInst = Renderer::LoadModel(gltfFileName, forceRebuild, true);
         m_ModelInst.LoopAllAnimations();
         m_ModelInst.Resize(10.0f);
 
@@ -120,7 +106,7 @@ void MeshletViewer::Update(float deltaT)
 
     if (GameInput::IsFirstPressed(GameInput::kKey_p))
     {
-        GraphRenderer::GetGraphData(m_PerfData);
+        GraphRenderer::GetGraphData(m_PerfData, 1);
         // Create and open a text file
         ofstream MyFile("filename.txt");
 
@@ -218,9 +204,9 @@ void MeshletViewer::RenderScene( void )
         
         {
             ScopedTimer _prof(L"Depth Pre-Pass", gfxContext);
-            sorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(),m_ModelInst.GetPrimitiveIndices(),m_ModelInst.GetMeshletAssocMap());            
+            sorter.RenderMeshes(MeshSorter::kZPass, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(),m_ModelInst.GetPrimitiveIndices(),m_ModelInst.GetMeshletAssocMap());               
         }
-
+        
         //Uses Compute shaders, not Vertex shaders
         SSAO::Render(gfxContext, m_Camera);
 
@@ -256,7 +242,7 @@ void MeshletViewer::RenderScene( void )
                 sorter.RenderMeshes(MeshSorter::kOpaque, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(), m_ModelInst.GetPrimitiveIndices(), m_ModelInst.GetMeshletAssocMap());
             }
 
-           Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
+           //Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
 
            sorter.RenderMeshes(MeshSorter::kTransparent, gfxContext, globals, m_ModelInst.GetMeshlets(), m_ModelInst.GetUniqueVertexIB(), m_ModelInst.GetPrimitiveIndices(), m_ModelInst.GetMeshletAssocMap());
         }
@@ -265,17 +251,17 @@ void MeshletViewer::RenderScene( void )
     // Some systems generate a per-pixel velocity buffer to better track dynamic and skinned meshes.  Everything
     // is static in our scene, so we generate velocity from camera motion and the depth buffer.  A velocity buffer
     // is necessary for all temporal effects (and motion blur).
-    MotionBlur::GenerateCameraVelocityBuffer(gfxContext, m_Camera, true);
+    //MotionBlur::GenerateCameraVelocityBuffer(gfxContext, m_Camera, true);
 
-    TemporalEffects::ResolveImage(gfxContext);
+    //TemporalEffects::ResolveImage(gfxContext);
 
-    ParticleEffectManager::Render(gfxContext, m_Camera, g_SceneColorBuffer, g_SceneDepthBuffer,  g_LinearDepth[FrameIndex]);
+    //ParticleEffectManager::Render(gfxContext, m_Camera, g_SceneColorBuffer, g_SceneDepthBuffer,  g_LinearDepth[FrameIndex]);
 
-    //Until I work out how to couple these two, it's "either-or".
-    if (DepthOfField::Enable)
-        DepthOfField::Render(gfxContext, m_Camera.GetNearClip(), m_Camera.GetFarClip());
-    else
-        MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
+    ////Until I work out how to couple these two, it's "either-or".
+    //if (DepthOfField::Enable)
+    //    DepthOfField::Render(gfxContext, m_Camera.GetNearClip(), m_Camera.GetFarClip());
+    //else
+    //    MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
     
     
 

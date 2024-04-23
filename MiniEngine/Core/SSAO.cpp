@@ -35,10 +35,10 @@ using namespace Math;
 
 namespace SSAO
 {
-    BoolVar Enable("Graphics/SSAO/Enable", true);
+    BoolVar Enable("Graphics/SSAO/Enable", false);
     BoolVar DebugDraw("Graphics/SSAO/Debug Draw", false);
     BoolVar AsyncCompute("Graphics/SSAO/Async Compute", false);
-    BoolVar ComputeLinearZ("Graphics/SSAO/Always Linearize Z", true);
+    BoolVar ComputeLinearZ("Graphics/SSAO/Always Linearize Z", false);
 
     // High quality (and better) is barely a noticeable improvement when modulated properly with ambient light.
     // However, in the debug view the quality improvement is very apparent.

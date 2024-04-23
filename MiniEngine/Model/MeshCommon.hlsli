@@ -70,12 +70,12 @@ uint GetVertexIndex(Meshlet m, uint localIndex)
     localIndex = m.VertOffset + localIndex;
 
     //INDICES ARE 16-BIT
-    //if (MeshInfo.IndexBytes == 4) // 32-bit Vertex Indices
-    //{
-    //    return UniqueVertexIndices.Load(localIndex * 4);
-    //}
-    //else // 16-bit Vertex Indices
-    //{
+    if (MeshInfo.IndexBytes == 4) // 32-bit Vertex Indices
+    {
+        return UniqueVertexIndices.Load(localIndex * 4);
+    }
+    else // 16-bit Vertex Indices
+    {
     
     // Byte address must be 4-byte aligned.
     uint wordOffset = (localIndex & 0x1);
@@ -87,7 +87,7 @@ uint GetVertexIndex(Meshlet m, uint localIndex)
 
     return index;
 
-   //}
+    }
 }
 
 

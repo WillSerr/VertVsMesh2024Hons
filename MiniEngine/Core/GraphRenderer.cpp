@@ -517,9 +517,9 @@ void GraphRenderer::SetSelectedIndex(uint32_t selectedIndex)
     s_SelectedTimerIndex = selectedIndex;
 }
 
-void GraphRenderer::GetGraphData(std::vector<float>& out_Times)
+void GraphRenderer::GetGraphData(std::vector<float>& out_Times, int GraphIndex)
 {
-    GlobalGraphs.m_Graphs[0].get()->GetGraphData(out_Times);
+    GlobalGraphs.m_Graphs[GraphIndex].get()->GetGraphData(out_Times);
     //ProfileGraphs[0].
 }
 

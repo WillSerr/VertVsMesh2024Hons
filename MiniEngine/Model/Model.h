@@ -62,6 +62,10 @@ struct Mesh
     uint32_t vbDepthSize;   // SizeInBytes
     uint32_t ibOffset;      // BufferLocation - Buffer.GpuVirtualAddress
     uint32_t ibSize;        // SizeInBytes
+
+    uint32_t mbOffset;      // BufferLocation - Buffer.GpuVirtualAddress
+    uint32_t meshletCount;  // MeshCount
+
     uint8_t  vbStride;      // StrideInBytes
     uint8_t  ibFormat;      // DXGI_FORMAT
     uint16_t meshCBV;       // Index of mesh constant buffer

@@ -10,6 +10,8 @@
 //
 // Author:  James Stanard
 //
+// Expanded for use with meshlets 
+// shaders by: William Serrels
 
 #pragma once
 
@@ -54,6 +56,13 @@ namespace Renderer
         Math::BoundingSphere m_BoundingSphere;
         AxisAlignedBox m_BoundingBox;
         std::vector<byte> m_GeometryData;
+
+        //These could be done as one large buffer but would be functionally identical but harder to read
+        std::vector<byte> m_MeshletData;
+        std::vector<byte> m_UniqueIndexData;
+        std::vector<byte> m_PrimitiveData;
+
+
         std::vector<byte> m_AnimationKeyFrameData;
         std::vector<AnimationCurve> m_AnimationCurves;
         std::vector<AnimationSet> m_Animations;
@@ -78,6 +87,12 @@ namespace Renderer
         uint32_t numTextures;
         uint32_t stringTableSize;
         uint32_t geometrySize;
+
+        uint32_t meshletsSize;  //Size in bytes
+        uint32_t uniqueIdxSize;  //Size in bytes
+        uint32_t primitiveSize;  //Size in bytes
+
+
         uint32_t keyFrameDataSize;      // Animation data
         uint32_t numAnimationCurves;
         uint32_t numAnimations;
@@ -100,5 +115,5 @@ namespace Renderer
     bool BuildModel( ModelData& model, const glTF::Asset& asset, int sceneIdx = -1 );
     bool SaveModel( const std::wstring& filePath, const ModelData& model );
     
-    std::shared_ptr<Model> LoadModel( const std::wstring& filePath, bool forceRebuild = false );
+    std::shared_ptr<Model> LoadModel( const std::wstring& filePath, bool forceRebuild = false, bool areUsingMeshletShaders = false);
 }

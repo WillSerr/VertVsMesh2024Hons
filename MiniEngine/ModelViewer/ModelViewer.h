@@ -34,4 +34,6 @@ private:
 
     ModelInstance m_ModelInst;
     ShadowCamera m_SunShadowCamera;
+
+    std::vector<float> m_PerfData;
 };

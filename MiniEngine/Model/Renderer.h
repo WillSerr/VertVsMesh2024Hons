@@ -158,6 +158,7 @@ namespace Renderer
             D3D12_GPU_VIRTUAL_ADDRESS meshletBufferPtr;
             D3D12_GPU_VIRTUAL_ADDRESS uIdxBufferPtr;
             D3D12_GPU_VIRTUAL_ADDRESS primBufferPtr;
+            int meshletCount;
         };
 
         std::vector<SortObject> m_SortObjects;

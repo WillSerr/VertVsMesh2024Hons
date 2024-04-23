@@ -28,6 +28,9 @@
 #include "glTF.h"
 #include "Display.h"
 #include "ModelLoader.h"
+#include "GraphRenderer.h"
+#include <iostream>
+#include <fstream>
 
 #include "ModelViewer.h"
 #include "IBLHelper.h"
@@ -113,6 +116,23 @@ void ModelViewer::Update( float deltaT )
         DebugZoom.Decrement();
     else if (GameInput::IsFirstPressed(GameInput::kRShoulder))
         DebugZoom.Increment();
+
+    if (GameInput::IsFirstPressed(GameInput::kKey_p))
+    {
+        GraphRenderer::GetGraphData(m_PerfData, 1);
+        // Create and open a text file
+        ofstream MyFile("filename.txt");
+
+        // Write to the file
+        for (float time : m_PerfData) {
+            string entry = to_string(time);
+            entry += ", ";
+            MyFile << entry;
+        }
+
+        // Close the file
+        MyFile.close();
+    }
 
     m_CameraController->Update(deltaT);
 
@@ -233,7 +253,7 @@ void ModelViewer::RenderScene( void )
                 sorter.RenderMeshes(MeshSorter::kOpaque, gfxContext, globals);
             }
 
-            Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
+            //Renderer::DrawSkybox(gfxContext, m_Camera, viewport, scissor);
 
             sorter.RenderMeshes(MeshSorter::kTransparent, gfxContext, globals);
         }
@@ -242,17 +262,17 @@ void ModelViewer::RenderScene( void )
     // Some systems generate a per-pixel velocity buffer to better track dynamic and skinned meshes.  Everything
     // is static in our scene, so we generate velocity from camera motion and the depth buffer.  A velocity buffer
     // is necessary for all temporal effects (and motion blur).
-    MotionBlur::GenerateCameraVelocityBuffer(gfxContext, m_Camera, true);
+    //MotionBlur::GenerateCameraVelocityBuffer(gfxContext, m_Camera, true);
 
-    TemporalEffects::ResolveImage(gfxContext);
+    //TemporalEffects::ResolveImage(gfxContext);
 
-    ParticleEffectManager::Render(gfxContext, m_Camera, g_SceneColorBuffer, g_SceneDepthBuffer,  g_LinearDepth[FrameIndex]);
+    //ParticleEffectManager::Render(gfxContext, m_Camera, g_SceneColorBuffer, g_SceneDepthBuffer,  g_LinearDepth[FrameIndex]);
 
-    // Until I work out how to couple these two, it's "either-or".
-    if (DepthOfField::Enable)
-        DepthOfField::Render(gfxContext, m_Camera.GetNearClip(), m_Camera.GetFarClip());
-    else
-        MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
+    //// Until I work out how to couple these two, it's "either-or".
+    //if (DepthOfField::Enable)
+    //    DepthOfField::Render(gfxContext, m_Camera.GetNearClip(), m_Camera.GetFarClip());
+    //else
+    //    MotionBlur::RenderObjectBlur(gfxContext, g_VelocityBuffer);
 
     gfxContext.Finish();
 }
